@@ -21,6 +21,8 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
+    outputs:
+      ok: ${{ steps.ok.outputs.ok }}
     timeout-minutes: 40
     defaults:
       run:
@@ -94,9 +96,28 @@ jobs:
           done
 
       # Xcode-zip naar builds/beheer/ op beheer.tunr.online (alleen als iOS en macOS slagen). Nooit op GitHub.
-      - name: Xcode-zip naar beheer.tunr.online
+      - name: Klaar voor de Xcode-zip?
+        id: ok
         if: steps.ios.outcome == 'success' && steps.macos.outcome == 'success'
-        working-directory: .
+        run: echo "ok=true" >> "$GITHUB_OUTPUT"
+
+      - name: Status
+        if: steps.ios.outcome != 'success' || steps.macos.outcome != 'success'
+        run: exit 1
+
+  # Xcode-zip uploaden vanaf Ubuntu (FTPS vanaf macOS-runners lukt niet); de zip is apple/ met het gecommitte xcodeproj.
+  upload:
+    needs: build
+    if: needs.build.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: lftp installeren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp rsync zip >/dev/null
+      - name: Xcode-zip naar beheer.tunr.online
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -124,6 +145,3 @@ jobs:
           bash tools/beheer_upload.sh beheer "$ZIP" "$V" "$B"
           rm -f "$ZIP"
 
-      - name: Status
-        if: steps.ios.outcome != 'success' || steps.macos.outcome != 'success'
-        run: exit 1
