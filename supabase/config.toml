@@ -1,0 +1,10 @@
+# Supabase-project "tunr" (los van Bingr). Schema: supabase/schema.sql (workflow Backend).
+project_id = "tunr"
+
+# Openbaar: anonieme ping van de Tunr-apps en de webspeler (eigen validatie en limiet, geen JWT).
+[functions.ping]
+verify_jwt = false
+
+# Beheer: eigen ondertekende tokens (zie supabase/functions/admin/auth.ts), geen Supabase-JWT.
+[functions.admin]
+verify_jwt = false

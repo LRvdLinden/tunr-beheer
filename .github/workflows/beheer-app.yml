@@ -1,0 +1,129 @@
+name: Beheer-app
+
+# BeheerTunr (apple/): één multiplatform-target voor iPhone, iPad en Mac.
+# 1. maakt apple/BeheerTunr.xcodeproj opnieuw uit apple/project.yml (XcodeGen) en commit hem, zodat klonen + openen werkt;
+# 2. controle-build iOS (simulator) en macOS zonder ondertekening, met foutenoverzicht;
+# 3. als beide slagen: het complete Xcode-project als zip (map "BeheerTunr" met BeheerTunr.xcodeproj) via FTPS naar
+#    builds/beheer/ op beheer.tunr.online (tools/beheer_upload.sh). Nooit op GitHub: geen artefact, geen release, niet in de repo.
+on:
+  push:
+    branches: [main]
+    paths: ['apple/**', '.github/workflows/beheer-app.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: beheer-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apple
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode kiezen (nieuwste Xcode 16)
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Project genereren (XcodeGen)
+        run: |
+          brew install xcodegen
+          xcodegen --version
+          xcodegen generate
+
+      - name: Xcode-project in de repo bijwerken
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A BeheerTunr.xcodeproj
+          if git diff --cached --quiet; then echo "Xcode-project ongewijzigd"; exit 0; fi
+          git commit -m "BeheerTunr: Xcode-project bijgewerkt (XcodeGen) [skip ci]"
+          for i in 1 2 3; do git pull --rebase -q origin "${GITHUB_REF_NAME}" && git push -q origin "HEAD:${GITHUB_REF_NAME}" && exit 0; sleep 5; done
+          echo "::warning::Xcode-project niet gepusht"
+
+      - name: Beschikbare bestemmingen
+        run: |
+          xcodebuild -showdestinations -project BeheerTunr.xcodeproj -scheme BeheerTunr > destinations.txt 2>&1 || true
+          grep -E "platform:" destinations.txt | sed -E 's/, id:[^,]*//' | sort -u | head -40 || true
+
+      - name: Build iOS + iPadOS (simulator)
+        id: ios
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild build -project BeheerTunr.xcodeproj -scheme BeheerTunr \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > ios.log 2>&1; rc=$?
+          tail -n 30 ios.log; exit $rc
+
+      - name: Build macOS
+        id: macos
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild build -project BeheerTunr.xcodeproj -scheme BeheerTunr \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > macos.log 2>&1; rc=$?
+          tail -n 30 macos.log; exit $rc
+
+      - name: Foutenoverzicht
+        if: always()
+        run: |
+          {
+            echo "## BeheerTunr-build"
+            echo "- iOS/iPadOS: ${{ steps.ios.outcome }}"
+            echo "- macOS: ${{ steps.macos.outcome }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for f in ios macos; do
+            echo "=== $f errors ==="
+            if [ -f "$f.log" ]; then
+              grep -E "error:" "$f.log" | sort -u | head -200 || true
+              n=$(grep -cE "error:" "$f.log" || true)
+              if [ "${n:-0}" != "0" ]; then
+                { echo; echo "### $f: fouten"; echo '```'; grep -E "error:" "$f.log" | sort -u | head -60; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          done
+
+      # Xcode-zip naar builds/beheer/ op beheer.tunr.online (alleen als iOS en macOS slagen). Nooit op GitHub.
+      - name: Xcode-zip naar beheer.tunr.online
+        if: steps.ios.outcome == 'success' && steps.macos.outcome == 'success'
+        working-directory: .
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_DIR: ${{ secrets.FTP_DIR }}
+        run: |
+          if [ -z "$FTP_SERVER" ] || [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "::warning::FTP-secrets ontbreken (FTP_SERVER / FTP_USERNAME / FTP_PASSWORD): Xcode-zip niet geüpload"
+            exit 0
+          fi
+          if [ ! -f tools/beheer_upload.sh ]; then
+            echo "::warning::tools/beheer_upload.sh ontbreekt: Xcode-zip niet geüpload"
+            exit 0
+          fi
+          V=$(grep -m1 'MARKETING_VERSION' apple/project.yml | grep -o '[0-9][0-9.]*')
+          B=$(grep -m1 'CURRENT_PROJECT_VERSION' apple/project.yml | grep -o '[0-9]\+')
+          ZIP="$RUNNER_TEMP/BeheerTunr-$V-build$B-Xcode.zip"
+          # uitpakken geeft één map "BeheerTunr" met BeheerTunr.xcodeproj erin
+          rm -rf "$RUNNER_TEMP/pkg" "$ZIP" && mkdir -p "$RUNNER_TEMP/pkg"
+          rsync -a --exclude 'build/' --exclude 'DerivedData/' --exclude 'xcuserdata/' --exclude '.DS_Store' \
+            --exclude '*.log' --exclude 'destinations.txt' apple/ "$RUNNER_TEMP/pkg/BeheerTunr/"
+          (cd "$RUNNER_TEMP/pkg" && zip -qry "$ZIP" BeheerTunr)
+          unzip -l "$ZIP" | grep -m1 'BeheerTunr/BeheerTunr.xcodeproj/project.pbxproj'
+          ls -lh "$ZIP"
+          bash tools/beheer_upload.sh beheer "$ZIP" "$V" "$B"
+          rm -f "$ZIP"
+
+      - name: Status
+        if: steps.ios.outcome != 'success' || steps.macos.outcome != 'success'
+        run: exit 1
