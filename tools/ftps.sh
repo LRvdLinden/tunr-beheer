@@ -11,6 +11,16 @@
 # Het log is openbaar: geen gebruikersnamen, mappen, hostnamen, IP-adressen of serverantwoorden, alleen gelukt/mislukt.
 
 FTPS_HOST_CANDIDATES="${FTPS_HOST_CANDIDATES:-cpanel04.zxcs.nl}"
+# macOS-runners: /usr/bin/openssl is LibreSSL (geen -verify_hostname/-starttls zoals OpenSSL); gebruik OpenSSL 3 van Homebrew
+if [ "$(uname -s)" = "Darwin" ] && ! openssl version 2>/dev/null | grep -q '^OpenSSL 3'; then
+  for _d in "$(brew --prefix openssl@3 2>/dev/null)/bin" /opt/homebrew/opt/openssl@3/bin /usr/local/opt/openssl@3/bin; do
+    [ -x "$_d/openssl" ] && { PATH="$_d:$PATH"; export PATH; break; }
+  done
+  if ! openssl version 2>/dev/null | grep -q '^OpenSSL 3' && command -v brew >/dev/null; then
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install openssl@3 >/dev/null 2>&1 || true
+    _d="$(brew --prefix openssl@3 2>/dev/null)/bin"; [ -x "$_d/openssl" ] && { PATH="$_d:$PATH"; export PATH; }
+  fi
+fi
 FTPS_TMP="${FTPS_TMP:-$(mktemp -d)}"
 _ftps_ca="$FTPS_TMP/ca.pem"
 _ftps_common="set cmd:fail-exit true; set net:max-retries 3; set net:timeout 30; set net:reconnect-interval-base 5; set ftp:passive-mode true"
