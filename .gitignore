@@ -1,0 +1,30 @@
+# macOS / editors
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Deno / Node
+node_modules/
+deno.lock
+.env
+.env.*
+
+# Supabase CLI (lokaal)
+supabase/.temp/
+supabase/.branches/
+
+# nooit in de repo: sleutels en buildpakketten (staan alleen op de server)
+web/builds/*
+!web/builds/.htaccess
+*.p8
+*.pem
+key.php
+*.apk
+*.ipa
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+build/

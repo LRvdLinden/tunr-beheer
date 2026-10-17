@@ -1,0 +1,222 @@
+name: Backend
+
+# Supabase-project "tunr": schema (supabase/schema.sql), function-secrets en de Edge Functions ping en admin.
+# Secrets: SUPABASE_ACCESS_TOKEN (supabase.com/dashboard/account/tokens), optioneel SUPABASE_PROJECT_REF (anders uit
+# web/config.js), TUNR_ADMIN_USER, TUNR_ADMIN_PASSWORD (>= 12 tekens), FTP_SERVER, FTP_USERNAME, FTP_PASSWORD (optioneel
+# FTP_DIR) voor builds/key.php. TUNR_TOKEN_SECRET en TUNR_BUILDS_KEY maakt deze workflow zelf aan als ze ontbreken.
+# Ontbreekt er iets, dan een waarschuwing en wordt die stap overgeslagen. Waarden komen nooit in de repo of het log.
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', 'tools/ftps.sh', '.github/workflows/backend.yml']
+  workflow_dispatch:
+    inputs:
+      rotate_builds_key:
+        description: 'Nieuwe sleutel voor de downloadlinks maken (TUNR_BUILDS_KEY + builds/key.php)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_SECRET: ${{ secrets.SUPABASE_PROJECT_REF }}
+      API: https://api.supabase.com/v1
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 (v5.1.0)
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2 (v2.0.5)
+        with:
+          deno-version: v2.x
+
+      # blokkerend: faalt een test, dan wordt er niets bijgewerkt
+      - name: Unittests (ping, inloggen/tokens, statistieken, downloads)
+        run: |
+          deno test supabase/functions > test.log 2>&1 && { tail -3 test.log; exit 0; }
+          grep -E "FAILED|error|=>" test.log | head -30 | while IFS= read -r l; do echo "::error::${l:0:300}"; done
+          exit 1
+
+      - name: Controleren
+        id: check
+        run: |
+          REF="${REF_SECRET:-}"
+          if [ -z "$REF" ]; then
+            REF=$(grep -oE "https://[a-z0-9]{20}\.supabase\.co" web/config.js | head -1 | sed -E 's#https://([a-z0-9]+)\..*#\1#' || true)
+          fi
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::warning::SUPABASE_ACCESS_TOKEN ontbreekt — backend niet bijgewerkt. Zie README.md."; echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! [[ "$REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "::warning::Geen Supabase-project: zet de URL in web/config.js of het secret SUPABASE_PROJECT_REF — backend niet bijgewerkt."; echo "skip=1" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "REF=$REF" >> "$GITHUB_ENV"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$API/projects/$REF" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" || true)
+          if [ "$code" != 200 ]; then
+            echo "::error::Supabase-project niet bereikbaar met SUPABASE_ACCESS_TOKEN (HTTP $code): klopt het token en de project-ref?"; exit 1
+          fi
+          echo "::notice::Supabase-project gevonden."
+
+      - name: Schema toepassen (supabase/schema.sql)
+        if: steps.check.outputs.skip != '1'
+        run: |
+          python3 -c 'import json; print(json.dumps({"query": open("supabase/schema.sql", encoding="utf-8").read()}))' > /tmp/q.json
+          code=$(curl -s -o /tmp/q.out -w '%{http_code}' -X POST "$API/projects/$REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" --data @/tmp/q.json || true)
+          if [ "${code:0:1}" != 2 ]; then
+            msg=$(python3 -c 'import json,sys
+          try: print(str(json.load(open("/tmp/q.out")).get("message",""))[:300])
+          except Exception: print("")' || true)
+            echo "::error::Schema niet toegepast (HTTP $code): ${msg:-onbekende fout}"; exit 1
+          fi
+          echo "::notice::Schema toegepast (tabellen, functies, rechten)."
+
+      - name: lftp installeren
+        if: steps.check.outputs.skip != '1'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp >/dev/null
+
+      - name: Function-secrets
+        if: steps.check.outputs.skip != '1'
+        env:
+          A_USER: ${{ secrets.TUNR_ADMIN_USER }}
+          A_PASS: ${{ secrets.TUNR_ADMIN_PASSWORD }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_DIR: ${{ secrets.FTP_DIR }}
+          ROTATE: ${{ inputs.rotate_builds_key || 'false' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          W=$(mktemp -d)
+          # bestaande secrets: namen en de SHA-256 van de waarde (de API geeft nooit de waarde zelf)
+          code=$(curl -s -o "$W/list.json" -w '%{http_code}' "$API/projects/$REF/secrets" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" || true)
+          [ "$code" = 200 ] || { echo "::error::Secrets niet te lezen (HTTP $code)."; exit 1; }
+          has(){ python3 -c 'import json,sys; sys.exit(0 if any(s.get("name")==sys.argv[1] for s in json.load(open(sys.argv[2]))) else 1)' "$1" "$W/list.json"; }
+          digest(){ python3 -c 'import json,sys; print(next((str(s.get("value","")) for s in json.load(open(sys.argv[2])) if s.get("name")==sys.argv[1]), ""))' "$1" "$W/list.json"; }
+          : > "$W/set.env"   # NAAM=waarde per regel, alleen in deze tijdelijke map
+          add(){ printf '%s\t%s\n' "$1" "$2" >> "$W/set.env"; }
+
+          # inloggegevens van het dashboard
+          if [ -n "${A_USER:-}" ] && [ -n "${A_PASS:-}" ]; then
+            [ ${#A_PASS} -lt 12 ] && echo "::warning::TUNR_ADMIN_PASSWORD is korter dan 12 tekens; kies een langer wachtwoord."
+            add TUNR_ADMIN_USER "$A_USER"; add TUNR_ADMIN_PASSWORD "$A_PASS"
+          elif has TUNR_ADMIN_USER && has TUNR_ADMIN_PASSWORD; then
+            echo "::warning::TUNR_ADMIN_USER/TUNR_ADMIN_PASSWORD ontbreken hier; de functie gebruikt de waarden die al in Supabase staan."
+          else
+            echo "::warning::TUNR_ADMIN_USER/TUNR_ADMIN_PASSWORD ontbreken (ook in Supabase): inloggen kan pas als ze er staan."
+          fi
+
+          # HMAC-sleutel voor inlogtokens: alleen aanmaken als hij er nog niet is
+          if ! has TUNR_TOKEN_SECRET; then
+            k=$(openssl rand -hex 32); echo "::add-mask::$k"; add TUNR_TOKEN_SECRET "$k"
+            echo "::notice::TUNR_TOKEN_SECRET aangemaakt."
+          fi
+
+          # sleutel voor de downloadlinks: function-secret TUNR_BUILDS_KEY == builds/key.php op de server
+          if [ -z "${FTP_SERVER:-}" ] || [ -z "${FTP_USERNAME:-}" ] || [ -z "${FTP_PASSWORD:-}" ]; then
+            echo "::warning::FTP-secrets ontbreken: TUNR_BUILDS_KEY / builds/key.php niet gecontroleerd (tab Downloads blijft 'niet ingericht')."
+          else
+            export FTPS_TMP="$W/ftps"; mkdir -p "$FTPS_TMP"
+            source tools/ftps.sh
+            ftps_connect
+            B="$FTPS_TARGET/builds"
+            ftps_try "get \"$B/key.php\" -o \"$W/key.php\"" >/dev/null 2>&1 || true
+            cur=$(grep -oE "'[0-9a-f]{64}'" "$W/key.php" 2>/dev/null | tr -d "'" | head -1 || true)
+            [ -n "$cur" ] && echo "::add-mask::$cur"
+            need=0
+            if [ "$ROTATE" = true ]; then need=1; echo "::notice::Nieuwe downloadsleutel op verzoek."
+            elif [ -z "$cur" ]; then need=1; echo "::notice::builds/key.php ontbreekt op de server."
+            elif ! has TUNR_BUILDS_KEY; then need=1; echo "::notice::TUNR_BUILDS_KEY ontbreekt in Supabase."
+            else
+              d=$(digest TUNR_BUILDS_KEY | tr 'A-F' 'a-f')
+              mine=$(printf '%s' "$cur" | sha256sum | cut -d' ' -f1)
+              if [[ "$d" =~ ^[0-9a-f]{64}$ ]] && [ "$d" != "$mine" ]; then need=1; echo "::notice::TUNR_BUILDS_KEY en builds/key.php verschillen."; fi
+            fi
+            if [ "$need" = 1 ]; then
+              k=$(openssl rand -hex 32); echo "::add-mask::$k"
+              printf "<?php\n// Sleutel voor de downloadlinks (gelijk aan het function-secret TUNR_BUILDS_KEY); map builds/ is niet via de webserver bereikbaar.\nreturn '%s';\n" "$k" > "$W/key.new.php"
+              printf '# Buildpakketten van Tunr: alleen via dl.php.\n<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n  Order allow,deny\n  Deny from all\n</IfModule>\nOptions -Indexes\n' > "$W/htaccess"
+              ftps_run "mkdir -p -f \"$B\"; put \"$W/htaccess\" -o \"$B/.htaccess\"; chmod 644 \"$B/.htaccess\"; put \"$W/key.new.php\" -o \"$B/key.php\"; chmod 600 \"$B/key.php\"" >/dev/null 2>&1 \
+                || { echo "::error::builds/key.php niet op de server gezet."; exit 1; }
+              add TUNR_BUILDS_KEY "$k"
+              echo "::notice::Nieuwe downloadsleutel gezet (server en Supabase); oude downloadlinks vervallen."
+            else
+              echo "::notice::Downloadsleutel klopt (server en Supabase)."
+            fi
+          fi
+
+          # in één keer zetten via de Management API (JSON uit het bestand, waarden niet in argv of het log)
+          if [ -s "$W/set.env" ]; then
+            python3 - "$W/set.env" > "$W/set.json" <<'PY'
+          import json, sys
+          out = []
+          for line in open(sys.argv[1], encoding="utf-8"):
+              line = line.rstrip("\n")
+              if "\t" in line:
+                  n, v = line.split("\t", 1)
+                  out.append({"name": n, "value": v})
+          print(json.dumps(out))
+          PY
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/projects/$REF/secrets" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              -H "Content-Type: application/json" --data @"$W/set.json" || true)
+            [ "${code:0:1}" = 2 ] || { echo "::error::Secrets niet gezet (HTTP $code)."; exit 1; }
+            echo "::notice::$(wc -l < "$W/set.env" | tr -d ' ') function-secret(s) gezet: $(cut -f1 "$W/set.env" | tr '\n' ' ')"
+          fi
+          rm -rf "$W"
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 (v1.7.3)
+        if: steps.check.outputs.skip != '1'
+        with:
+          version: 2.121.0
+
+      - name: Edge Functions ping en admin
+        if: steps.check.outputs.skip != '1'
+        run: |
+          supabase functions deploy ping --project-ref "$REF" --no-verify-jwt --use-api
+          supabase functions deploy admin --project-ref "$REF" --no-verify-jwt --use-api
+
+      - name: Rooktest
+        if: steps.check.outputs.skip != '1'
+        run: |
+          sleep 5
+          KEY=$(grep -oE "sb_publishable_[A-Za-z0-9_-]+" web/config.js | head -1 || true)
+          F="https://$REF.supabase.co/functions/v1"
+          fail=0
+          hdr(){ grep -i "^$1:" /tmp/h.txt | tr -d '\r' | cut -d' ' -f2- | head -1; }
+          # ping: ongeldige ping = 400 met CORS voor tunr.online (er wordt niets opgeslagen)
+          code=$(curl -s -D /tmp/h.txt -o /tmp/b.json -w '%{http_code}' -X POST "$F/ping" -H "Origin: https://tunr.online" \
+            -H "Content-Type: application/json" ${KEY:+-H "apikey: $KEY"} -d '{"id":"x","platform":"ios"}')
+          if [ "$code" = 400 ] && grep -q bad_id /tmp/b.json && [ "$(hdr access-control-allow-origin)" = "https://tunr.online" ]; then
+            echo "::notice::ping weigert een ongeldige ping (400, CORS tunr.online)"
+          else echo "::error::ping gaf HTTP $code"; fail=1; fi
+          # admin: fout wachtwoord = 401 met CORS voor beheer.tunr.online
+          code=$(curl -s -D /tmp/h.txt -o /tmp/b.json -w '%{http_code}' -X POST "$F/admin" -H "Origin: https://beheer.tunr.online" \
+            -H "Content-Type: application/json" ${KEY:+-H "apikey: $KEY"} -d "{\"action\":\"login\",\"user\":\"ci-test\",\"password\":\"fout-$(openssl rand -hex 8)\"}")
+          acao=$(hdr access-control-allow-origin)
+          if [ "$code" = 401 ] && grep -q invalid_credentials /tmp/b.json && [ "$acao" = "https://beheer.tunr.online" ]; then
+            echo "::notice::login met fout wachtwoord: 401 (CORS beheer.tunr.online)"
+          elif [ "$code" = 503 ] && grep -q not_configured /tmp/b.json; then
+            echo "::warning::admin staat online, maar TUNR_ADMIN_USER/TUNR_ADMIN_PASSWORD/TUNR_TOKEN_SECRET ontbreken"
+          elif [ "$code" = 429 ]; then
+            echo "::warning::login tijdelijk geblokkeerd (te veel mislukte pogingen)"
+          else echo "::error::login gaf HTTP $code"; fail=1; fi
+          # zonder (geldig) token geen gegevens
+          for a in stats builds build_link logout_all; do
+            code=$(curl -s -o /tmp/b.json -w '%{http_code}' -X POST "$F/admin" -H "Content-Type: application/json" ${KEY:+-H "apikey: $KEY"} \
+              -H "Authorization: Bearer eyJ2IjoxLCJlIjo5OTk5OTk5OTk5LCJzIjoiYWRtaW4ifQ.vervalstvervalstvervalstvervalstvervalstvvv" -d "{\"action\":\"$a\",\"platform\":\"apple\"}")
+            case "$code" in 401) echo "::notice::$a vraagt om inloggen" ;; 503) echo "::warning::$a: functie nog niet ingericht" ;; *) echo "::error::$a zonder inloggen gaf HTTP $code"; fail=1 ;; esac
+          done
+          # een ander domein krijgt niets
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$F/admin" -H "Origin: https://example.com" -H "Content-Type: application/json" ${KEY:+-H "apikey: $KEY"} -d '{"action":"login"}')
+          [ "$code" = 403 ] && echo "::notice::admin weigert andere domeinen" || { echo "::error::admin vanaf een ander domein gaf HTTP $code"; fail=1; }
+          exit $fail

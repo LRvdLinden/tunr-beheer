@@ -31,7 +31,7 @@ svg{flex:none}
 .brand{display:flex;align-items:center;gap:14px}
 .logo{display:inline-flex;flex-direction:column;gap:.08em;line-height:1;font-family:var(--font-head);font-weight:900;letter-spacing:.04em;font-size:24px;color:#fff}
 .logo b{font-weight:900;display:block;padding-left:.04em}
-.logo svg{display:block;width:100%;height:.3em;overflow:visible}
+.logo svg{display:block;width:0;min-width:100%;height:.3em;overflow:visible}
 .tag{font-size:14px;font-weight:700;color:var(--sec);padding-left:14px;border-left:1px solid var(--stroke2);line-height:1.1;letter-spacing:.01em}
 .brand.big .logo{font-size:38px}
 .brand.big .tag{font-size:17px}
@@ -81,7 +81,7 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .login-foot a{color:var(--sec);text-decoration:none}
 .login-foot a:hover{color:#fff}
 .setup p{color:var(--sec);margin-top:8px}
-.code{display:block;margin-top:14px;padding:12px 14px;border-radius:10px;background:#00000080;border:1px solid var(--stroke);font-family:var(--mono);font-size:12.5px;color:#ffd9a8;white-space:pre-wrap;word-break:break-all}
+.code{display:block;margin-top:14px;padding:12px 14px;border-radius:10px;background:#00000080;border:1px solid var(--stroke);font-family:var(--mono);font-size:12.5px;color:#ffd9a8;white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* ===== kop en tabs ===== */
 .top{position:sticky;top:0;z-index:40;background:#0a0a0cd9;backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);border-bottom:1px solid var(--stroke)}
@@ -103,7 +103,7 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .card{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-card);padding:20px 22px;min-width:0}
 .card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px}
 .card-h h2{font-size:16px;font-weight:800;letter-spacing:-.005em}
-.foot-note{margin-top:22px;text-align:center}
+.foot-note{margin-top:8px;text-align:center}
 
 /* kengetallen */
 .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
@@ -139,7 +139,8 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .tip span{color:var(--sec)}
 
 /* verdelingen */
-.dists{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+.dists{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
+.dcol{display:flex;flex-direction:column;gap:14px;min-width:0}
 .dist{display:flex;flex-direction:column;gap:12px}
 .drow{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;row-gap:6px;align-items:baseline}
 .drow .k{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px;font-weight:600}
@@ -201,7 +202,9 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 
 /* ===== responsief ===== */
 @media (max-width:1060px){
-  .dists,.builds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .builds{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dists{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dcol:nth-child(3){grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 }
 @media (max-width:860px){
   :root{--g:20px}
@@ -231,10 +234,15 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
   .kpi{padding:14px 14px 12px}
   .kpi .v{font-size:27px}
   .kpi.hero .v{font-size:38px}
-  .kpi .spark{width:46%;height:40px;right:14px;bottom:14px}
+  .kpi .spark{width:42%;height:38px;right:14px;bottom:auto;top:44px}
   .card{padding:16px}
-  .charts,.dists,.builds{gap:10px;margin-top:10px}
-  .dists,.builds{grid-template-columns:minmax(0,1fr)}
+  .charts,.builds{gap:10px;margin-top:10px}
+  .dists{margin-top:10px}
+  .builds{grid-template-columns:minmax(0,1fr)}
+  .dists,.dcol:nth-child(3){grid-template-columns:minmax(0,1fr)}
+  .dists,.dcol{gap:10px}
+  /* geen backdrop-filter op de kop: die zou de vaste tabbalk onderin aan de kop vastmaken */
+  .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:#0a0a0cf2}
   .chart{height:190px}
   .login-card{padding:28px 20px 18px}
   .brand.big .logo{font-size:32px}
@@ -242,3 +250,4 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+#setMsg:empty{display:none}

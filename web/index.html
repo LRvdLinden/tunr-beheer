@@ -46,7 +46,10 @@
     <div id="setup" class="setup hidden">
       <h1 class="login-h" data-i18n="setup.title">Nog niet ingericht</h1>
       <p data-i18n="setup.text">Het Supabase-project van Tunr is nog niet gekoppeld. Zet de publieke URL en de publishable key in web/config.js en publiceer het dashboard opnieuw.</p>
-      <code class="code">window.BEHEER = { url: 'https://…supabase.co', key: 'sb_publishable_…' };</code>
+      <code class="code">window.BEHEER = {
+  url: 'https://&lt;ref&gt;.supabase.co',
+  key: 'sb_publishable_…'
+};</code>
     </div>
     <div class="login-foot">
       <div class="lang" role="group" aria-label="Taal / Language"><button type="button" data-lang="nl">NL</button><button type="button" data-lang="en">EN</button></div>
@@ -99,11 +102,17 @@
         </article>
       </div>
       <div class="dists">
+        <div class="dcol">
         <article class="card"><header class="card-h"><h2 data-i18n="ov.platforms">Per platform</h2><span class="muted sm" data-i18n="ov.allInstalls">alle installaties</span></header><div id="distPlatforms" class="dist"></div></article>
+        </div>
+        <div class="dcol">
         <article class="card"><header class="card-h"><h2 data-i18n="ov.devices">Per type apparaat</h2><span class="muted sm" data-i18n="ov.allInstalls">alle installaties</span></header><div id="distDevices" class="dist"></div></article>
+        </div>
+        <div class="dcol">
         <article class="card"><header class="card-h"><h2 data-i18n="ov.versions">App-versies</h2><span class="muted sm" data-i18n="ov.active30">actief, 30 dagen</span></header><div id="distVersions" class="dist"></div></article>
         <article class="card"><header class="card-h"><h2 data-i18n="ov.countries">Landen</h2><span class="muted sm" data-i18n="ov.active30">actief, 30 dagen</span></header><div id="distCountries" class="dist"></div></article>
         <article class="card"><header class="card-h"><h2 data-i18n="ov.langs">Talen</h2><span class="muted sm" data-i18n="ov.active30">actief, 30 dagen</span></header><div id="distLangs" class="dist"></div></article>
+        </div>
       </div>
       <p class="foot-note muted sm" data-i18n="ov.note">Anonieme tellingen: één willekeurige id per installatie, geen IP-adressen of persoonsgegevens. Alle tijden in UTC.</p>
     </section>
