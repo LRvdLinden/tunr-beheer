@@ -11,6 +11,6 @@
 | `appletv` | 3840 × 2160 | Apple TV |
 | `appletv-brand` | Top Shelf, Top Shelf Wide, app-iconen | zitten ook in het Xcode-project |
 | `icon-1024.png` | 1024 × 1024 | App Store-icoon |
-| `promo` | 1920 × 1080 | promo/banner |
+| `promo` | Header 5244 × 2950 en 3840 × 1646; Search Results 5244 × 2950, 3840 × 2560 en 1920 × 1280; promo 1920 × 1080 | App Store Connect → Header / Search Results |
 
 Alle PNG's zonder alfakanaal.
