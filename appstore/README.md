@@ -9,7 +9,7 @@
 | `ipad-13` | 2064 × 2752 | iPad 13" (verplicht) |
 | `mac` | 2880 × 1800 | Mac |
 | `appletv` | 3840 × 2160 | Apple TV |
-| `appletv-brand` | Top Shelf, Top Shelf Wide, app-iconen | zitten ook in het Xcode-project |
+| `appletv-brand` | Top Shelf, Top Shelf Wide, app-iconen (Home Screen, gelaagd: voor/midden/achter met zenderlogo's); `layers/` = de losse lagen | zitten ook in het Xcode-project |
 | `icon-1024.png` | 1024 × 1024 | App Store-icoon |
 | `promo` | Header 5244 × 2950 en 3840 × 1646; Search Results 5244 × 2950, 3840 × 2560 en 1920 × 1280; promo 1920 × 1080 | App Store Connect → Header / Search Results |
 
