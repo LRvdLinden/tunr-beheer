@@ -33,12 +33,19 @@ alter table public.admin_token_state enable row level security;
 alter table public.admin_audit enable row level security;
 -- geen policies: alleen de functies (service role) lezen en schrijven
 
+-- presskit-downloads (functie presskit): alleen tijdstip en versie, geen IP of andere gegevens
+create table if not exists public.presskit_downloads (id bigserial primary key, at timestamptz not null default now(), version text not null default '');
+alter table public.presskit_downloads enable row level security;
+
 -- ===== aanvullend (niet in het contract-blok, wel nodig voor de functies) =====
 create index if not exists installs_first_seen on public.installs(first_seen);
 create index if not exists admin_audit_login on public.admin_audit(action, at);
+create index if not exists presskit_downloads_at on public.presskit_downloads(at);
+create index if not exists presskit_downloads_version on public.presskit_downloads(version);
 
 -- Extra slot op de deur: anon/authenticated mogen niets met deze tabellen (RLS zonder policies doet dat al).
-revoke all on table public.installs, public.install_days, public.admin_token_state, public.admin_audit from anon, authenticated;
+revoke all on table public.installs, public.install_days, public.admin_token_state, public.admin_audit, public.presskit_downloads from anon, authenticated;
+revoke all on sequence public.presskit_downloads_id_seq from anon, authenticated;
 
 -- ping: upsert van een installatie en de dag van vandaag (UTC). first_seen blijft, carplay = oud OR nieuw.
 create or replace function public.tunr_ping(
@@ -136,6 +143,33 @@ begin
   return out;
 end $$;
 
+-- presskit: één download tellen (functie presskit). Versie ingekort tot 40 tekens.
+create or replace function public.tunr_presskit_hit(p_version text) returns void
+language sql security definer set search_path = public as $$
+  insert into public.presskit_downloads(version) values (left(coalesce(p_version, ''), 40));
+$$;
+
+-- presskit: tellingen voor de actie stats (vorm: docs/CONTRACT.md, stats → presskit). Alles in UTC.
+-- per_day = de laatste 30 dagen t/m vandaag (ook dagen met 0), oud → nieuw; per_version = nieuwste 20 versies.
+create or replace function public.tunr_presskit_stats() returns json
+language plpgsql stable security definer set search_path = public as $$
+declare
+  today date := (now() at time zone 'utc')::date;
+  f0 timestamptz := ((today - 29)::timestamp at time zone 'utc');
+  out json;
+begin
+  select json_build_object(
+    'total', (select count(*) from public.presskit_downloads),
+    'last_30d', (select count(*) from public.presskit_downloads where at >= f0),
+    'per_version', (select coalesce(json_agg(json_build_object('version', v, 'count', c) order by v desc), '[]'::json)
+      from (select version as v, count(*) as c from public.presskit_downloads group by version order by version desc limit 20) s),
+    'per_day', (select coalesce(json_agg(json_build_object('day', to_char(g.d, 'YYYY-MM-DD'), 'count', coalesce(x.c, 0)) order by g.d), '[]'::json)
+      from (select today - 29 + k as d from generate_series(0, 29) as k) g
+      left join (select (at at time zone 'utc')::date as d, count(*) as c from public.presskit_downloads where at >= f0 group by 1) x on x.d = g.d)
+  ) into out;
+  return out;
+end $$;
+
 -- functies alleen voor de service role (Edge Functions)
 revoke all on function public.tunr_ping(uuid, text, text, text, text, text, int, text, text, boolean) from public, anon, authenticated;
 revoke all on function public.tunr_admin_logout_all() from public, anon, authenticated;
@@ -145,3 +179,7 @@ grant execute on function public.tunr_ping(uuid, text, text, text, text, text, i
 grant execute on function public.tunr_admin_logout_all() to service_role;
 grant execute on function public.tunr_cleanup() to service_role;
 grant execute on function public.tunr_stats(int, int) to service_role;
+revoke all on function public.tunr_presskit_hit(text) from public, anon, authenticated;
+revoke all on function public.tunr_presskit_stats() from public, anon, authenticated;
+grant execute on function public.tunr_presskit_hit(text) to service_role;
+grant execute on function public.tunr_presskit_stats() to service_role;

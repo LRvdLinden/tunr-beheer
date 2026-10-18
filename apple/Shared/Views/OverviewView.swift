@@ -139,6 +139,10 @@ struct OverviewView: View {
                 BarList.Row(id: $0.key, label: Fmt.language($0.key), icon: "character.bubble", value: $0.installs)
             })
         }
+
+        if let pk = s.presskit {
+            PresskitCard(info: pk)
+        }
     }
 
     private func activeDetail(_ b: Bucket) -> String? {
@@ -177,5 +181,115 @@ struct OverviewView: View {
             if let e = error as? APIError, e.isUnauthorized { return }
             self.error = (error as? APIError)?.errorDescription ?? L("Er ging iets mis.")
         }
+    }
+}
+
+// MARK: - PressKit
+
+/// Kaart PressKit (stats → presskit): huidige versie, downloads totaal / 30 dagen, staafjes per dag en per versie.
+/// "Download presskit" opent de zip op tunr.online direct (telt niet mee als download).
+struct PresskitCard: View {
+    let info: PresskitInfo
+
+    private var maxDay: Int { info.perDay.map(\.count).max() ?? 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.title3)
+                    .foregroundStyle(BeheerTheme.accent2)
+                    .frame(width: 40, height: 40)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 11))
+                SectionHeader(title: L("PressKit"), subtitle: L("Downloads via de link PressKit onderaan tunr.online"))
+                Link(destination: info.url) {
+                    Label(L("Download presskit"), systemImage: "arrow.down.circle")
+                        .labelStyle(.titleAndIcon)
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.bordered)
+                .fixedSize()
+            }
+
+            if info.available {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Text(verbatim: info.version)
+                            .font(.system(.headline, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .textSelection(.enabled)
+                        ForEach(info.platforms, id: \.self) { p in
+                            Text(verbatim: p)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(BeheerTheme.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                        }
+                    }
+                    if let d = info.date {
+                        InfoRow(label: L("Datum"), value: Fmt.day(d, template: "d MMM y"))
+                    }
+                    InfoRow(label: L("Grootte"), value: info.size > 0 ? Fmt.bytes(info.size) : "—")
+                    InfoRow(label: L("Bestanden"), value: Fmt.num(info.files))
+                }
+            } else {
+                Text(L("Nog geen presskit online gevonden (workflow Website in int-radio-app)."))
+                    .font(.subheadline)
+                    .foregroundStyle(BeheerTheme.accent2)
+            }
+
+            HStack(spacing: 12) {
+                KPITile(title: L("Downloads totaal"), value: info.downloadsTotal, icon: "arrow.down.circle", highlight: true)
+                KPITile(title: L("Laatste 30 dagen"), value: info.downloads30d, icon: "calendar")
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(L("Downloads per dag"))
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BeheerTheme.dim)
+                    Spacer()
+                    Text(L("30 dagen"))
+                        .font(.caption)
+                        .foregroundStyle(BeheerTheme.dim)
+                }
+                Chart(info.perDay) { d in
+                    BarMark(x: .value(L("Dag"), d.date, unit: .day),
+                            y: .value(L("Downloads"), d.count))
+                        .foregroundStyle(d.count > 0 ? AnyShapeStyle(BeheerTheme.accent) : AnyShapeStyle(Color.white.opacity(0.1)))
+                        .cornerRadius(2)
+                }
+                .chartYScale(domain: 0...max(1, maxDay))
+                .chartYAxis {
+                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
+                        AxisGridLine().foregroundStyle(Color.white.opacity(0.06))
+                        AxisValueLabel().foregroundStyle(BeheerTheme.dim)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day, count: 7)) { _ in
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated)).foregroundStyle(BeheerTheme.dim)
+                    }
+                }
+                .frame(height: 120)
+                .accessibilityLabel(String(format: L("Downloads per dag, laatste 30 dagen: %@ in totaal"),
+                                           Fmt.num(info.perDay.reduce(0) { $0 + $1.count })))
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L("Per versie"))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BeheerTheme.dim)
+                BarList(rows: info.perVersion.map { v in
+                    BarList.Row(id: v.version.isEmpty ? "?" : v.version,
+                                label: v.version.isEmpty ? L("Onbekende versie") : v.version,
+                                icon: "shippingbox",
+                                detail: info.available && v.version == info.version ? L("huidig") : nil,
+                                value: v.count)
+                }, emptyText: L("Nog geen downloads."))
+            }
+        }
+        .card()
     }
 }

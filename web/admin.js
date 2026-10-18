@@ -57,6 +57,11 @@
       "e.builds_not_configured": "Downloads zijn nog niet ingericht.", "e.builds_unreachable": "De server met de builds is niet bereikbaar.",
       "e.unknown_action": "Onbekende actie: vernieuw de pagina.", "e.forbidden": "Geweigerd.", "e.bad_range": "Ongeldige periode.",
       "u.h": "{n} uur", "u.m": "{n} min",
+      "pk.title": "PressKit", "pk.sub": "Downloads via de link PressKit onderaan tunr.online", "pk.download": "Download presskit",
+      "pk.date": "Datum", "pk.size": "Grootte", "pk.files": "Bestanden", "pk.filesN": "{n} bestanden", "pk.total": "Downloads totaal",
+      "pk.d30": "Laatste 30 dagen", "pk.perDay": "Downloads per dag", "pk.perVersion": "Per versie", "pk.current": "huidig",
+      "pk.none": "Nog geen presskit online gevonden (workflow Website in int-radio-app).", "pk.noDl": "Nog geen downloads.",
+      "pk.unknown": "Onbekende versie", "pk.days30": "30 dagen", "pk.today": "vandaag", "pk.chart": "Downloads per dag, laatste 30 dagen: {n} in totaal",
     },
     en: {
       "brand.tag": "Admin", "login.title": "Sign in", "login.user": "Username", "login.pass": "Password", "login.submit": "Sign in",
@@ -100,6 +105,11 @@
       "e.builds_not_configured": "Downloads aren't set up yet.", "e.builds_unreachable": "The build server can't be reached.",
       "e.unknown_action": "Unknown action: reload the page.", "e.forbidden": "Refused.", "e.bad_range": "Invalid period.",
       "u.h": "{n} h", "u.m": "{n} min",
+      "pk.title": "PressKit", "pk.sub": "Downloads via the PressKit link at the bottom of tunr.online", "pk.download": "Download press kit",
+      "pk.date": "Date", "pk.size": "Size", "pk.files": "Files", "pk.filesN": "{n} files", "pk.total": "Total downloads",
+      "pk.d30": "Last 30 days", "pk.perDay": "Downloads per day", "pk.perVersion": "Per version", "pk.current": "current",
+      "pk.none": "No press kit found online yet (Website workflow in int-radio-app).", "pk.noDl": "No downloads yet.",
+      "pk.unknown": "Unknown version", "pk.days30": "30 days", "pk.today": "today", "pk.chart": "Downloads per day, last 30 days: {n} in total",
     },
   };
   let lang = store.get(LKEY) === "en" ? "en" : "nl";
@@ -355,6 +365,66 @@
     renderDist("distVersions", s.versions, tt.active_30d, "version");
     renderDist("distCountries", s.countries, tt.active_30d, "country");
     renderDist("distLangs", s.langs, tt.active_30d, "lang");
+    renderPresskit(s.presskit);
+  }
+
+  // ---------- PressKit (stats.presskit) ----------
+  const PK_ZIP = "https://tunr.online/presskit/Tunr-PressKit.zip";
+  function renderPresskit(pk) {
+    const box = $("pkBody"), link = $("pkLink");
+    const ok = pk && typeof pk === "object";
+    const url = ok && typeof pk.url === "string" && pk.url.startsWith(PK_ZIP) ? pk.url : PK_ZIP;
+    link.href = url;
+    if (!ok) { box.innerHTML = `<p class="none">${esc(t("d.none"))}</p>`; return; }
+    const perDay = Array.isArray(pk.per_day) ? pk.per_day.filter((d) => d && /^\d{4}-\d{2}-\d{2}$/.test(d.day)) : [];
+    const perVer = Array.isArray(pk.per_version) ? pk.per_version.filter((v) => v && (v.count || 0) > 0) : [];
+    const sum30 = perDay.reduce((a, d) => a + (Number(d.count) || 0), 0);
+    const max30 = Math.max(0, ...perDay.map((d) => Number(d.count) || 0));
+    const facts = pk.available
+      ? `<div class="pk-ver"><b>${esc(pk.version)}</b>${(pk.platforms || []).map((p) => `<span class="chip">${esc(p)}</span>`).join("")}</div>
+        <dl class="pk-dl">
+          <dt>${esc(t("pk.date"))}</dt><dd>${esc(fmtWhen(pk.date) || "—")}</dd>
+          <dt>${esc(t("pk.size"))}</dt><dd>${esc(fmtSize(pk.size) || "—")}</dd>
+          <dt>${esc(t("pk.files"))}</dt><dd>${esc(t("pk.filesN", { n: nf(pk.files || 0) }))}</dd>
+        </dl>`
+      : `<p class="pk-none">${esc(t("pk.none"))}</p>`;
+    const verRows = perVer.length
+      ? perVer.map((v) => {
+        const max = Math.max(...perVer.map((x) => x.count || 0), 1);
+        const cur = pk.available && v.version === pk.version;
+        return `<div class="drow">
+          <div class="k"><span>${esc(v.version || t("pk.unknown"))}</span>${cur ? `<span class="chip">${esc(t("pk.current"))}</span>` : ""}</div>
+          <div class="n">${nf(v.count || 0)}<small>${pct(v.count || 0, Math.max(pk.downloads_total || 0, 1))}</small></div>
+          <div class="track"><div class="fill" data-w="${((v.count || 0) / max) * 100}"></div></div></div>`;
+      }).join("")
+      : `<p class="none">${esc(t("pk.noDl"))}</p>`;
+    box.innerHTML = `<div class="pk-facts">${facts}
+        <div class="pk-nums">
+          <div class="pk-num"><span>${esc(t("pk.total"))}</span><b>${nf(pk.downloads_total || 0)}</b></div>
+          <div class="pk-num"><span>${esc(t("pk.d30"))}</span><b>${nf(pk.downloads_30d || 0)}</b></div>
+        </div></div>
+      <div class="pk-chart"><h3>${esc(t("pk.perDay"))}<span class="muted">${esc(t("pk.days30"))}</span></h3>
+        <div id="pkPlot" class="pk-plot" role="img" aria-label="${esc(t("pk.chart", { n: nf(sum30) }))}">${max30 ? `<span class="pk-max">${nf(max30)}</span>` : ""}</div>
+        <div class="pk-axis"><span>${perDay.length ? esc(fmtDay(perDay[0].day, { day: "numeric", month: "short" })) : ""}</span><span>${esc(t("pk.today"))}</span></div></div>
+      <div class="pk-vers"><h3>${esc(t("pk.perVersion"))}</h3><div class="dist">${verRows}</div></div>`;
+    pkBars($("pkPlot"), perDay);
+    requestAnimationFrame(() => box.querySelectorAll(".fill").forEach((f) => { f.style.width = `${f.dataset.w}%`; }));
+  }
+  /** Staafjes per dag (inline SVG, schaalt mee; titel per staaf als tooltip). */
+  function pkBars(plot, data) {
+    if (!plot) return;
+    const n = data.length, W = 300, H = 100;
+    const max = Math.max(1, ...data.map((d) => Number(d.count) || 0));
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", "aria-hidden": "true" }, plot);
+    el("line", { x1: 0, x2: W, y1: H - 0.5, y2: H - 0.5, class: "base" }, svg);
+    if (!n) return;
+    const slot = W / n, bw = Math.max(1, slot * 0.68);
+    data.forEach((d, i) => {
+      const c = Number(d.count) || 0;
+      const h = c ? Math.max(3, (c / max) * (H - 6)) : 1.5;
+      const r = el("rect", { x: (i * slot + (slot - bw) / 2).toFixed(2), y: (H - h).toFixed(2), width: bw.toFixed(2), height: h.toFixed(2), rx: Math.min(2, bw / 2), class: c ? "bar" : "bar zero" }, svg);
+      el("title", {}, r).textContent = `${fmtDay(d.day, { weekday: "short", day: "numeric", month: "short" })}: ${nf(c)}`;
+    });
   }
 
   // ---------- grafiek in de stijl van Homey Insights (inline SVG, geen bibliotheken) ----------

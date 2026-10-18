@@ -115,3 +115,18 @@
 "Volgende periode" = "Volgende periode";
 "Vorige periode" = "Vorige periode";
 "Week" = "Week";
+
+/* PressKit (Overzicht) */
+"PressKit" = "PressKit";
+"Downloads via de link PressKit onderaan tunr.online" = "Downloads via de link PressKit onderaan tunr.online";
+"Download presskit" = "Download presskit";
+"Bestanden" = "Bestanden";
+"Nog geen presskit online gevonden (workflow Website in int-radio-app)." = "Nog geen presskit online gevonden (workflow Website in int-radio-app).";
+"Downloads totaal" = "Downloads totaal";
+"Downloads per dag" = "Downloads per dag";
+"30 dagen" = "30 dagen";
+"Downloads per dag, laatste 30 dagen: %@ in totaal" = "Downloads per dag, laatste 30 dagen: %@ in totaal";
+"Per versie" = "Per versie";
+"Onbekende versie" = "Onbekende versie";
+"huidig" = "huidig";
+"Nog geen downloads." = "Nog geen downloads.";

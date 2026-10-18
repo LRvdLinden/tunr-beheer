@@ -4,7 +4,7 @@
 // POST /functions/v1/admin  {action, ...}; header apikey; na inloggen Authorization: Bearer <token>
 //   login       {user, password}     -> {token, expires}            (expires = ISO 8601; 5 fouten per IP = 15 min dicht: 429 {error:"locked", retry_after})
 //   logout_all  {}                   -> {ok, v}                     (tokenversie + 1: alle tokens vervallen)
-//   stats       {days?: 30, offset?: 0} -> {generated, totals, range, per_day, summary, platforms, devices, versions, countries, langs}
+//   stats       {days?: 30, offset?: 0} -> {generated, totals, range, per_day, summary, platforms, devices, versions, countries, langs, presskit}
 //                                    (days ∈ 7|30|90|365, offset = periodes terug, offset*days ≤ 400; anders 400 {error:"bad_range"})
 //   builds      {}                   -> {ready, platforms: {apple, android, beheer}, reason?}
 //   build_link  {platform, file?}    -> {url, expires, file, size}  (10 minuten geldig; expires = ISO 8601)
@@ -14,6 +14,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { bearer, FailureLog, GLOBAL_MAX, hashIp, LOCK_MAX, LOCK_WINDOW_S, lockRetryAfter, readToken, sameSecret, signToken } from "./auth.ts";
 import { cleanStats, parseRange } from "./stats.ts";
+import { cleanPresskit, parsePresskitMeta, PRESSKIT_META_URL, type PresskitMeta } from "./presskit.ts";
 import { buildUrl, cleanManifest, emptyManifest, findBuild, isBuildPlatform, isValidBuildFile, LINK_TTL, type Manifest, MIN_KEY, signBuildToken } from "./builds.ts";
 
 const env = (k: string) => (Deno.env.get(k) ?? "").trim();
@@ -99,6 +100,37 @@ async function maybeCleanup() {
   lastCleanup = Date.now();
   const { error } = await db.rpc("tunr_cleanup");
   if (error) console.error("admin", "cleanup", error.message);
+}
+
+// ---- presskit: presskit.json van tunr.online (10 min in het geheugen; na een fout 1 min) + tellingen uit SQL ----
+let pkMeta: PresskitMeta | null = null, pkUntil = 0;
+async function presskitMeta(): Promise<PresskitMeta | null> {
+  if (Date.now() < pkUntil) return pkMeta;
+  let m: PresskitMeta | null = null;
+  try {
+    const res = await fetch(PRESSKIT_META_URL, { signal: AbortSignal.timeout(4000), headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const text = await res.text();
+      if (text.length <= 20_000) m = parsePresskitMeta(JSON.parse(text));
+    } else await res.body?.cancel().catch(() => {});
+  } catch (e) { console.error("admin", "presskit", e instanceof Error ? e.name : "?"); }
+  if (m) pkMeta = m;
+  pkUntil = Date.now() + (m ? 600_000 : 60_000);
+  return pkMeta;
+}
+/** Blok presskit voor stats; mag nooit de hele actie laten mislukken. */
+async function presskitBlock() {
+  const [meta, counts] = await Promise.all([
+    presskitMeta(),
+    (async () => {
+      try {
+        const { data, error } = await db.rpc("tunr_presskit_stats");
+        if (error) throw new Error(error.message);
+        return data as unknown;
+      } catch (e) { console.error("admin", "presskit_stats", e instanceof Error ? e.message : "?"); return null; }
+    })(),
+  ]);
+  return cleanPresskit(meta, counts);
 }
 
 // ---- downloads: builds/manifest.json via dl.php (token van 60 s) ----
@@ -193,9 +225,12 @@ Deno.serve(async (req) => {
         const q = parseRange(body.days, body.offset);
         if (!q) return json({ error: "bad_range" }, 400);
         await maybeCleanup();
-        const { data, error } = await db.rpc("tunr_stats", { p_days: q.days, p_offset: q.offset });
+        const [{ data, error }, presskit] = await Promise.all([
+          db.rpc("tunr_stats", { p_days: q.days, p_offset: q.offset }),
+          presskitBlock(),
+        ]);
         if (error) throw new Error(error.message);
-        return json(cleanStats(data, new Date(), q));
+        return json({ ...cleanStats(data, new Date(), q), presskit });
       }
       case "builds": {
         const r = await fetchManifest();

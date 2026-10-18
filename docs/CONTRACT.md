@@ -6,10 +6,11 @@ Dit document is de bron van waarheid voor alle onderdelen. Wijzig het eerst hier
 
 | Onderdeel | Waar | Wat |
 |---|---|---|
-| Supabase-project **tunr** | supabase.com (eigen project, los van Bingr) | tabellen `installs`, `install_days`, `admin_token_state`, `admin_audit`; Edge Functions `ping` (openbaar) en `admin` (beheer) |
+| Supabase-project **tunr** | supabase.com (eigen project, los van Bingr) | tabellen `installs`, `install_days`, `admin_token_state`, `admin_audit`, `presskit_downloads`; Edge Functions `ping` en `presskit` (openbaar) en `admin` (beheer) |
 | Dashboard | repo `LRvdLinden/tunr-beheer`, map `web/` → **https://beheer.tunr.online** (FTPS) | statische HTML/JS/CSS; tabs Overzicht, Downloads, Instellingen; `dl.php` + afgesloten map `builds/` |
 | Beheer-app **BeheerTunr** | repo `tunr-beheer`, map `apple/` | SwiftUI, één multiplatform-target (iOS/iPadOS 17+, macOS 14+), bundle-id `nl.lrvdlinden.tunr.beheer`, Team `EU3UY476T6` |
 | Tunr-apps + webspeler | repo `int-radio-app` | sturen een anonieme **ping**; build-workflows zetten Xcode-zip en APK via FTPS in `builds/` van beheer.tunr.online (niet meer op GitHub) |
+| Presskit | repo `int-radio-app`, workflow *Website* + `tools/make_presskit.py` → **https://tunr.online/presskit/** | `Tunr-PressKit.zip` + `presskit.json`, gemaakt uit `appstore/` van deze repo; footer-link **PressKit** op tunr.online → functie `presskit` |
 
 ## Configuratie (openbaar, mag in de repo's)
 
@@ -61,7 +62,13 @@ alter table public.install_days enable row level security;
 alter table public.admin_token_state enable row level security;
 alter table public.admin_audit enable row level security;
 -- geen policies: alleen de functies (service role) lezen en schrijven
+
+-- presskit-downloads (functie presskit): alleen tijdstip en versie, geen IP of andere gegevens
+create table if not exists public.presskit_downloads (id bigserial primary key, at timestamptz not null default now(), version text not null default '');
+alter table public.presskit_downloads enable row level security;
 ```
+
+SQL-functies (service role): `tunr_presskit_hit(p_version text)` (één rij, versie max 40 tekens) en `tunr_presskit_stats()` → `{total, last_30d, per_version:[{version,count}] (nieuwste 20), per_day:[{day,count}] (laatste 30 dagen t/m vandaag, UTC, ook 0)}`. Presskit-downloads worden niet opgeschoond (geen persoonsgegevens; totaal blijft kloppen).
 
 Opschonen: installs zonder ping in 400 dagen en `install_days` ouder dan 400 dagen worden bij elke `stats`-aanroep (max 1× per dag) verwijderd.
 
@@ -80,6 +87,20 @@ Opschonen: installs zonder ping in 400 dagen en `install_days` ouder dan 400 dag
 - Antwoord 200 `{ "ok": true }`. CORS: `Access-Control-Allow-Origin: https://tunr.online` (+ `OPTIONS`).
 
 **Wanneer pingen de apps?** Bij het starten (en bij terugkomen naar de voorgrond) als de laatste geslaagde ping > 12 uur geleden is. Install-id: willekeurige UUID, lokaal bewaard (Apple: UserDefaults, niet in iCloud; Android: SharedPreferences; web: localStorage `tunr.installId`). Instelling **"Anonieme gebruiksstatistieken"** (standaard aan) in Instellingen → uit = geen pings. Fouten worden genegeerd.
+
+## Functie `presskit` (openbaar, `verify_jwt = false`)
+
+`GET {SUPABASE_URL}/functions/v1/presskit` (de footer-link **PressKit** op elke pagina van tunr.online behalve de webspeler; gewone link, geen apikey, werkt zonder JS):
+
+- Leest de huidige versie uit `https://tunr.online/presskit/presskit.json` (10 minuten in het geheugen; na een fout 1 minuut, met de laatste goede waarde).
+- Telt één download met `tunr_presskit_hit(versie)`: alleen bij `GET` van een browser (geen HEAD, geen robots/linkvoorbeelden/scripts op basis van de User-Agent), hoogstens **5 per IP per uur** (in het geheugen van de functie; best effort). Slaat **geen IP-adres** op.
+- Antwoord altijd **302** naar `https://tunr.online/presskit/Tunr-PressKit.zip?v=<versie>` (zonder `?v=` als de versie onbekend is), `Cache-Control: no-store`. Ook bij elke fout wordt doorgestuurd: de download mag nooit breken. Andere methodes: 405.
+
+`presskit.json` (gemaakt door `tools/make_presskit.py` in int-radio-app; workflow *Website*, bij elke upload en maandelijks, of alleen de presskit met de invoer `presskit_only`):
+```json
+{ "version": "2026.10.18-8140c4", "date": "2026-10-18", "size": 50796528, "files": 50, "platforms": ["Apple"] }
+```
+`version` = `<YYYY.MM.DD>-<eerste 6 tekens sha256 van de inhoud>`; verandert alleen als de inhoud verandert (dan ook een nieuwe datum). Zip: map `Tunr Press Kit/` met `README.txt`, `Brand/`, `Apple/<apparaat>/`, `Promo/` (later bv. `Android/`).
 
 ## Functie `admin` (`verify_jwt = false`, eigen tokens)
 
@@ -103,8 +124,14 @@ Opschonen: installs zonder ping in 400 dagen en `install_days` ouder dan 400 dag
   "devices":   [ { "key": "iPhone", "installs": 480, "active_30d": 390 } ],
   "versions":  [ { "key": "1.0.0 (14)", "installs": 300 } ],              // top 12, actief 30d
   "countries": [ { "key": "NL", "installs": 700 } ],                      // top 15, actief 30d
-  "langs":     [ { "key": "nl", "installs": 800 } ] }
+  "langs":     [ { "key": "nl", "installs": 800 } ],
+  "presskit":  { "available": true, "version": "2026.10.18-8140c4", "date": "2026-10-18", "size": 50796528, "files": 50,
+                 "platforms": ["Apple"], "url": "https://tunr.online/presskit/Tunr-PressKit.zip?v=2026.10.18-8140c4",
+                 "downloads_total": 120, "downloads_30d": 34,
+                 "per_version": [ { "version": "2026.10.18-8140c4", "count": 30 } ],   // nieuwste eerst (max 20)
+                 "per_day": [ { "day": "2026-09-19", "count": 0 } ] } }           // laatste 30 dagen t/m vandaag, oud → nieuw
 ```
+  `presskit`: versie/datum/grootte/bestanden uit `presskit.json` (server-side opgehaald, 10 min in het geheugen; niet bereikbaar = `available:false` en lege velden), tellingen uit `tunr_presskit_stats()` (mislukt = nullen). Het blok laat `stats` nooit mislukken. `url` = directe link naar de zip (telt niet mee).
   SQL: `public.tunr_stats(p_days int, p_offset int)` (service role); de functie `admin` controleert de invoer, rekent `summary` uit en maakt het antwoord netjes (`supabase/functions/admin/stats.ts`).
 - `builds` → `{ ready: bool, platforms: { apple: [build…], android: [build…], beheer: [build…] } }`, build = `{version, build, file, size, sha256, date, notes}` nieuwste eerst. Leest `manifest.json` via `https://beheer.tunr.online/dl.php` met een eigen kortgeldig token. Zonder `TUNR_BUILDS_KEY` → `ready:false`.
 - `build_link` `{platform, file}` → `{ url, expires }` = `https://beheer.tunr.online/dl.php?t=<token>` (10 minuten). Audit `build_link` (platform + bestand).
@@ -131,7 +158,7 @@ Er komt nooit een pakket op GitHub (geen repo, geen release, geen artefact).
 ## Dashboard (web) en Beheer-app — schermen
 
 - **Inloggen**: gebruikersnaam + wachtwoord. App: token in de Keychain (alleen dit apparaat), Face ID/Touch ID-vergrendeling (standaard aan).
-- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages. Vernieuwen-knop; "bijgewerkt om …".
+- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages; kaart **PressKit**: huidige versie, datum, grootte, aantal bestanden, downloads totaal en laatste 30 dagen, staafjes per dag (30 dagen), lijst per versie en de link **Download presskit** (opent `presskit.url`, telt niet mee). Vernieuwen-knop; "bijgewerkt om …".
 - **Downloads**: per platform (Apple, Android, BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds.
 - **Instellingen**: uitloggen, overal uitloggen, (app) vergrendelen aan/uit, links naar tunr.online en de webspeler.
 - Stijl: Tunr-huisstijl (donker #0A0A0C, accent #FF5A1F → #FFB020), NL (standaard) / EN.

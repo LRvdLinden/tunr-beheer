@@ -4,7 +4,7 @@ Het beheer van **Tunr**, de wereldwijde radio-app: anonieme gebruiksstatistieken
 
 - **Dashboard**: https://beheer.tunr.online (map `web/`, statisch, geen build-stap)
 - **Beheer-app BeheerTunr**: map `apple/` (SwiftUI, iPhone, iPad en Mac)
-- **Backend**: eigen Supabase-project **tunr** (map `supabase/`): tabellen + de Edge Functions `ping` (openbaar, voor de Tunr-apps) en `admin` (beheer)
+- **Backend**: eigen Supabase-project **tunr** (map `supabase/`): tabellen + de Edge Functions `ping` (openbaar, voor de Tunr-apps), `presskit` (openbaar, telt presskit-downloads van tunr.online en stuurt door) en `admin` (beheer)
 
 De afspraken tussen alle onderdelen staan in [`docs/CONTRACT.md`](docs/CONTRACT.md).
 
@@ -14,7 +14,7 @@ De afspraken tussen alle onderdelen staan in [`docs/CONTRACT.md`](docs/CONTRACT.
 
 | Onderdeel | Wat |
 |---|---|
-| `supabase/schema.sql` | tabellen `installs`, `install_days`, `admin_token_state`, `admin_audit` (RLS aan, geen policies) en de functies `tunr_ping`, `tunr_stats`, `tunr_cleanup`, `tunr_admin_logout_all` (alleen service role) |
+| `supabase/schema.sql` | tabellen `installs`, `install_days`, `admin_token_state`, `admin_audit`, `presskit_downloads` (RLS aan, geen policies) en de functies `tunr_ping`, `tunr_stats`, `tunr_cleanup`, `tunr_admin_logout_all`, `tunr_presskit_hit`, `tunr_presskit_stats` (alleen service role) |
 | `supabase/functions/ping` | anonieme ping van de apps en de webspeler: strenge controle, geen IP-adres opgeslagen, max. 30 per IP per uur |
 | `supabase/functions/admin` | inloggen (eigen HMAC-token, 12 uur), overal uitloggen, statistieken, downloads (`builds`, `build_link`) |
 | `web/` | dashboard: Overzicht, Downloads, Instellingen (NL/EN), `dl.php` en de afgesloten map `builds/` |
@@ -25,7 +25,7 @@ De afspraken tussen alle onderdelen staan in [`docs/CONTRACT.md`](docs/CONTRACT.
 
 | Workflow | Wanneer | Wat |
 |---|---|---|
-| *Backend* (`backend.yml`) | push op `supabase/**`, of met de hand | tests (Deno), schema via de Management API, function-secrets, deploy van `ping` en `admin`, rooktest |
+| *Backend* (`backend.yml`) | push op `supabase/**`, of met de hand | tests (Deno), schema via de Management API, function-secrets, deploy van `ping`, `admin` en `presskit`, rooktest |
 | *Dashboard* (`site.yml`) | push op `web/**`, of met de hand | `web/` via FTPS naar beheer.tunr.online (de inhoud van `builds/` blijft staan), daarna controle van de site |
 | *Beheer-app* (`beheer-app.yml`) | push op `apple/**` | bouwt BeheerTunr en zet de Xcode-zip in `builds/beheer/` |
 

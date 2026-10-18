@@ -1,6 +1,6 @@
 name: Backend
 
-# Supabase-project "tunr": schema (supabase/schema.sql), function-secrets en de Edge Functions ping en admin.
+# Supabase-project "tunr": schema (supabase/schema.sql), function-secrets en de Edge Functions ping, admin en presskit.
 # Secrets: SUPABASE_ACCESS_TOKEN (supabase.com/dashboard/account/tokens), optioneel SUPABASE_PROJECT_REF (anders uit
 # web/config.js), TUNR_ADMIN_USER, TUNR_ADMIN_PASSWORD (>= 12 tekens), FTP_SERVER, FTP_USERNAME, FTP_PASSWORD (optioneel
 # FTP_DIR) voor builds/key.php. TUNR_TOKEN_SECRET en TUNR_BUILDS_KEY maakt deze workflow zelf aan als ze ontbreken.
@@ -40,7 +40,7 @@ jobs:
           deno-version: v2.x
 
       # blokkerend: faalt een test, dan wordt er niets bijgewerkt
-      - name: Unittests (ping, inloggen/tokens, statistieken, downloads)
+      - name: Unittests (ping, inloggen/tokens, statistieken, downloads, presskit)
         run: |
           deno test supabase/functions > test.log 2>&1 && { tail -3 test.log; exit 0; }
           grep -E "FAILED|error|=>" test.log | head -30 | while IFS= read -r l; do echo "::error::${l:0:300}"; done
@@ -179,11 +179,12 @@ jobs:
         with:
           version: 2.121.0
 
-      - name: Edge Functions ping en admin
+      - name: Edge Functions ping, admin en presskit
         if: steps.check.outputs.skip != '1'
         run: |
           supabase functions deploy ping --project-ref "$REF" --no-verify-jwt --use-api
           supabase functions deploy admin --project-ref "$REF" --no-verify-jwt --use-api
+          supabase functions deploy presskit --project-ref "$REF" --no-verify-jwt --use-api
 
       - name: Rooktest
         if: steps.check.outputs.skip != '1'
@@ -216,6 +217,12 @@ jobs:
               -H "Authorization: Bearer eyJ2IjoxLCJlIjo5OTk5OTk5OTk5LCJzIjoiYWRtaW4ifQ.vervalstvervalstvervalstvervalstvervalstvvv" -d "{\"action\":\"$a\",\"platform\":\"apple\"}")
             case "$code" in 401) echo "::notice::$a vraagt om inloggen" ;; 503) echo "::warning::$a: functie nog niet ingericht" ;; *) echo "::error::$a zonder inloggen gaf HTTP $code"; fail=1 ;; esac
           done
+          # presskit: HEAD (telt niet mee) = 302 naar de zip op tunr.online
+          code=$(curl -s -I -o /tmp/h.txt -w '%{http_code}' "$F/presskit" -A "ci-rooktest-bot")
+          loc=$(hdr location)
+          if [ "$code" = 302 ] && [[ "$loc" == https://tunr.online/presskit/Tunr-PressKit.zip* ]]; then
+            echo "::notice::presskit stuurt door naar tunr.online (302)"
+          else echo "::error::presskit gaf HTTP $code"; fail=1; fi
           # een ander domein krijgt niets
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$F/admin" -H "Origin: https://example.com" -H "Content-Type: application/json" ${KEY:+-H "apikey: $KEY"} -d '{"action":"login"}')
           [ "$code" = 403 ] && echo "::notice::admin weigert andere domeinen" || { echo "::error::admin vanaf een ander domein gaf HTTP $code"; fail=1; }

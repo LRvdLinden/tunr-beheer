@@ -8,3 +8,7 @@ verify_jwt = false
 # Beheer: eigen ondertekende tokens (zie supabase/functions/admin/auth.ts), geen Supabase-JWT.
 [functions.admin]
 verify_jwt = false
+
+# Openbaar: presskit-download tellen + doorsturen naar tunr.online (eigen limiet, geen JWT; link in de footer van tunr.online).
+[functions.presskit]
+verify_jwt = false

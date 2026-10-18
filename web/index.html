@@ -136,6 +136,18 @@
         <article class="card"><header class="card-h"><h2 data-i18n="ov.langs">Talen</h2><span class="muted sm" data-i18n="ov.active30">actief, 30 dagen</span></header><div id="distLangs" class="dist"></div></article>
         </div>
       </div>
+      <!-- PressKit (stats.presskit): versie, downloads per dag en per versie; getekend door admin.js -->
+      <article id="pk" class="card pk" aria-labelledby="pkTitle">
+        <header class="card-h pk-h">
+          <div class="pk-t">
+            <div class="pk-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg></div>
+            <div><h2 id="pkTitle" data-i18n="pk.title">PressKit</h2><p class="muted sm" data-i18n="pk.sub">Downloads via de link PressKit onderaan tunr.online</p></div>
+          </div>
+          <a id="pkLink" class="btn ghost sm" href="https://tunr.online/presskit/Tunr-PressKit.zip" rel="noopener" download>
+            <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M4 20h16"/></svg><span data-i18n="pk.download">Download presskit</span></a>
+        </header>
+        <div id="pkBody" class="pk-body"></div>
+      </article>
       <p class="foot-note muted sm" data-i18n="ov.note">Anonieme tellingen: één willekeurige id per installatie, geen IP-adressen of persoonsgegevens. Alle tijden in UTC.</p>
     </section>
 

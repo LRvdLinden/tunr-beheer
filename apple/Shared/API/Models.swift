@@ -59,9 +59,11 @@ struct Stats: Decodable {
     let versions: [Bucket]
     let countries: [Bucket]
     let langs: [Bucket]
+    /// Presskit: versie en downloads (ontbreekt bij een oudere server).
+    let presskit: PresskitInfo?
 
     enum CodingKeys: String, CodingKey {
-        case generated, totals, range, summary, platforms, devices, versions, countries, langs
+        case generated, totals, range, summary, platforms, devices, versions, countries, langs, presskit
         case perDay = "per_day"
     }
 
@@ -77,6 +79,87 @@ struct Stats: Decodable {
         versions = ((try? c.decodeIfPresent([Bucket].self, forKey: .versions)) ?? nil) ?? []
         countries = ((try? c.decodeIfPresent([Bucket].self, forKey: .countries)) ?? nil) ?? []
         langs = ((try? c.decodeIfPresent([Bucket].self, forKey: .langs)) ?? nil) ?? []
+        presskit = (try? c.decodeIfPresent(PresskitInfo.self, forKey: .presskit)) ?? nil
+    }
+}
+
+// MARK: presskit (stats → presskit)
+
+/// Blok `presskit` van `stats`: huidige versie (uit presskit.json op tunr.online) en de downloadtellingen.
+struct PresskitInfo: Decodable {
+    struct VersionCount: Identifiable {
+        let version: String
+        let count: Int
+        var id: String { version }
+    }
+
+    struct DayCount: Identifiable {
+        let day: String
+        let count: Int
+        var id: String { day }
+        var date: Date { Fmt.parseDay(day) ?? Date.distantPast }
+    }
+
+    static let zipURL = URL(string: "https://tunr.online/presskit/Tunr-PressKit.zip")!
+
+    let available: Bool
+    let version: String
+    let date: Date?
+    let size: Int
+    let files: Int
+    let platforms: [String]
+    let url: URL
+    let downloadsTotal: Int
+    let downloads30d: Int
+    let perVersion: [VersionCount]
+    let perDay: [DayCount]
+
+    enum CodingKeys: String, CodingKey {
+        case available, version, date, size, files, platforms, url
+        case downloadsTotal = "downloads_total"
+        case downloads30d = "downloads_30d"
+        case perVersion = "per_version"
+        case perDay = "per_day"
+    }
+
+    private struct Row: Decodable {
+        let version: String
+        let day: String
+        let count: Int
+
+        enum CodingKeys: String, CodingKey { case version, day, count }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            func flex(_ k: CodingKeys) -> FlexValue? { (try? c.decodeIfPresent(FlexValue.self, forKey: k)) ?? nil }
+            version = flex(.version)?.text ?? ""
+            day = String((flex(.day)?.text ?? "").prefix(10))
+            count = max(0, Int(flex(.count)?.number ?? 0))
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func flex(_ k: CodingKeys) -> FlexValue? { (try? c.decodeIfPresent(FlexValue.self, forKey: k)) ?? nil }
+        func int(_ k: CodingKeys) -> Int { max(0, Int(flex(k)?.number ?? 0)) }
+        version = flex(.version)?.text ?? ""
+        available = ((try? c.decodeIfPresent(Bool.self, forKey: .available)) ?? nil) ?? !version.isEmpty
+        date = flex(.date)?.date
+        size = int(.size)
+        files = int(.files)
+        platforms = ((try? c.decodeIfPresent([FlexValue].self, forKey: .platforms)) ?? nil)?.compactMap(\.text) ?? []
+        // alleen een link naar de zip op tunr.online (nooit iets anders openen)
+        if let s = flex(.url)?.text, s.hasPrefix(PresskitInfo.zipURL.absoluteString), let u = URL(string: s) {
+            url = u
+        } else {
+            url = PresskitInfo.zipURL
+        }
+        downloadsTotal = int(.downloadsTotal)
+        downloads30d = int(.downloads30d)
+        let versions = ((try? c.decodeIfPresent([Row].self, forKey: .perVersion)) ?? nil) ?? []
+        perVersion = versions.filter { $0.count > 0 }.map { VersionCount(version: $0.version, count: $0.count) }
+        let days = ((try? c.decodeIfPresent([Row].self, forKey: .perDay)) ?? nil) ?? []
+        perDay = days.filter { $0.day.count == 10 }.map { DayCount(day: $0.day, count: $0.count) }.sorted { $0.day < $1.day }
     }
 }
 
