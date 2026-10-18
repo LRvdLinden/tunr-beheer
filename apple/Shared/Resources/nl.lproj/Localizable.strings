@@ -95,3 +95,23 @@
 "nieuw" = "nieuw";
 "toegangscode" = "toegangscode";
 "wachtwoord" = "wachtwoord";
+
+/* Grafiekkaart Gebruikers (stijl Homey Insights) */
+"Actieve gebruikers" = "Actieve gebruikers";
+"Gebruikers" = "Gebruikers";
+"Gem." = "Gem.";
+"Jaar" = "Jaar";
+"Klaar" = "Klaar";
+"Kwartaal" = "Kwartaal";
+"Laatste" = "Laatste";
+"Maand" = "Maand";
+"Max" = "Max";
+"Min" = "Min";
+"Nieuwe gebruikers" = "Nieuwe gebruikers";
+"Periode" = "Periode";
+"Totaal" = "Totaal";
+"Vergroten" = "Vergroten";
+"Verkleinen" = "Verkleinen";
+"Volgende periode" = "Volgende periode";
+"Vorige periode" = "Vorige periode";
+"Week" = "Week";

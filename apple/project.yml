@@ -16,7 +16,7 @@ settings:
     SWIFT_VERSION: "5.9"
     # Versie 1.0.0; alleen het buildnummer gaat omhoog
     MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "2"
     # Team van Léon van der Linden; automatisch ondertekenen
     DEVELOPMENT_TEAM: EU3UY476T6
     CODE_SIGN_STYLE: Automatic

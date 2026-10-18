@@ -5,7 +5,7 @@
   const CFG = window.BEHEER || {};
   const READY = typeof CFG.url === "string" && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(CFG.url) && !!CFG.key;
   const FN = READY ? `${CFG.url.replace(/\/+$/, "")}/functions/v1/admin` : "";
-  const SKEY = "tunrBeheer.session", LKEY = "tunrBeheer.lang";
+  const SKEY = "tunrBeheer.session", LKEY = "tunrBeheer.lang", RKEY = "tunrBeheer.range";
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const store = {
@@ -22,7 +22,12 @@
       "setup.text": "Het Supabase-project van Tunr is nog niet gekoppeld. Zet de publieke URL en de publishable key in web/config.js en publiceer het dashboard opnieuw.",
       "tab.overview": "Overzicht", "tab.downloads": "Downloads", "tab.settings": "Instellingen",
       "ov.refresh": "Vernieuwen", "ov.updated": "Bijgewerkt om {t}", "ov.loading": "Laden…",
-      "ov.activePerDay": "Actief per dag", "ov.newPerDay": "Nieuw per dag", "ov.last30": "laatste 30 dagen",
+      "ins.title": "Gebruikers", "ins.week": "Week", "ins.month": "Maand", "ins.quarter": "Kwartaal", "ins.year": "Jaar",
+      "ins.range": "Periode", "ins.series": "Reeksen", "ins.prev": "Vorige periode", "ins.next": "Volgende periode",
+      "ins.expand": "Vergroten", "ins.close": "Verkleinen", "ins.active": "Actieve gebruikers", "ins.new": "Nieuwe gebruikers",
+      "ins.min": "Min", "ins.max": "Max", "ins.avg": "Gem.", "ins.last": "Laatste", "ins.total": "Totaal", "ins.today": "vandaag",
+      "ins.plot": "Grafiek {p}. Pijltjestoetsen: dag voor dag; Shift + pijltje: per week; Home/End: begin/eind.",
+      "ins.oneOn": "Er moet minstens één reeks zichtbaar blijven.",
       "ov.platforms": "Per platform", "ov.devices": "Per type apparaat", "ov.versions": "App-versies", "ov.countries": "Landen", "ov.langs": "Talen",
       "ov.allInstalls": "alle installaties", "ov.active30": "actief, 30 dagen",
       "ov.note": "Anonieme tellingen: één willekeurige id per installatie, geen IP-adressen of persoonsgegevens. Alle tijden in UTC.",
@@ -50,7 +55,7 @@
       "e.not_configured": "De beheerfunctie is nog niet ingericht (workflow Backend: TUNR_ADMIN_USER / TUNR_ADMIN_PASSWORD).",
       "e.rate_limited": "Te veel verzoeken. Wacht een minuut.", "e.build_not_found": "Deze build staat niet (meer) op de server. Vernieuw de lijst.",
       "e.builds_not_configured": "Downloads zijn nog niet ingericht.", "e.builds_unreachable": "De server met de builds is niet bereikbaar.",
-      "e.unknown_action": "Onbekende actie: vernieuw de pagina.", "e.forbidden": "Geweigerd.",
+      "e.unknown_action": "Onbekende actie: vernieuw de pagina.", "e.forbidden": "Geweigerd.", "e.bad_range": "Ongeldige periode.",
       "u.h": "{n} uur", "u.m": "{n} min",
     },
     en: {
@@ -60,7 +65,12 @@
       "setup.text": "Tunr's Supabase project isn't linked yet. Put the public URL and the publishable key in web/config.js and publish the dashboard again.",
       "tab.overview": "Overview", "tab.downloads": "Downloads", "tab.settings": "Settings",
       "ov.refresh": "Refresh", "ov.updated": "Updated at {t}", "ov.loading": "Loading…",
-      "ov.activePerDay": "Active per day", "ov.newPerDay": "New per day", "ov.last30": "last 30 days",
+      "ins.title": "Users", "ins.week": "Week", "ins.month": "Month", "ins.quarter": "Quarter", "ins.year": "Year",
+      "ins.range": "Period", "ins.series": "Series", "ins.prev": "Previous period", "ins.next": "Next period",
+      "ins.expand": "Expand", "ins.close": "Collapse", "ins.active": "Active users", "ins.new": "New users",
+      "ins.min": "Min", "ins.max": "Max", "ins.avg": "Avg.", "ins.last": "Last", "ins.total": "Total", "ins.today": "today",
+      "ins.plot": "Chart {p}. Arrow keys: day by day; Shift + arrow: by week; Home/End: start/end.",
+      "ins.oneOn": "At least one series has to stay visible.",
       "ov.platforms": "By platform", "ov.devices": "By device type", "ov.versions": "App versions", "ov.countries": "Countries", "ov.langs": "Languages",
       "ov.allInstalls": "all installs", "ov.active30": "active, 30 days",
       "ov.note": "Anonymous counts: one random id per install, no IP addresses or personal data. All times in UTC.",
@@ -88,7 +98,7 @@
       "e.not_configured": "The admin function isn't set up yet (Backend workflow: TUNR_ADMIN_USER / TUNR_ADMIN_PASSWORD).",
       "e.rate_limited": "Too many requests. Wait a minute.", "e.build_not_found": "This build is no longer on the server. Refresh the list.",
       "e.builds_not_configured": "Downloads aren't set up yet.", "e.builds_unreachable": "The build server can't be reached.",
-      "e.unknown_action": "Unknown action: reload the page.", "e.forbidden": "Refused.",
+      "e.unknown_action": "Unknown action: reload the page.", "e.forbidden": "Refused.", "e.bad_range": "Invalid period.",
       "u.h": "{n} h", "u.m": "{n} min",
     },
   };
@@ -127,6 +137,7 @@
   function applyLang() {
     document.documentElement.lang = lang;
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => { el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
     document.querySelectorAll("[data-lang]").forEach((b) => {
       b.classList.toggle("on", b.dataset.lang === lang);
       b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
@@ -197,7 +208,9 @@
   }
   function logout(msg) {
     setSession(null);
-    stats = null; builds = null;
+    stats = null; builds = null; lastPd0 = null;
+    statsCache.clear();
+    closeFull();
     clearInterval(timer);
     showLogin(msg);
   }
@@ -233,7 +246,7 @@
     }
     if (focus) $(`tab-${name}`).focus();
     history.replaceState(null, "", name === "overview" ? location.pathname : `#${name}`);
-    if (name === "overview") { if (!stats) loadStats(); else renderCharts(); }
+    if (name === "overview") { if (!stats) loadStats(); else renderInsights(); }
     if (name === "downloads" && !builds) loadBuilds();
     if (name === "settings") renderSession();
     window.scrollTo(0, 0);
@@ -251,27 +264,54 @@
   });
 
   // ---------- Overzicht ----------
-  let stats = null, statsAt = null, timer = 0;
-  async function loadStats() {
-    const btn = $("refresh");
+  // stats {days, offset}: de kengetallen en verdelingen gaan over nu; per_day/summary over de gekozen periode.
+  const RANGES = [7, 30, 90, 365];
+  const RANGE_KEY = { 7: "ins.week", 30: "ins.month", 90: "ins.quarter", 365: "ins.year" };
+  const RETENTION = 400;   // dagen (docs/CONTRACT.md): offset * days ≤ 400
+  const range = { days: RANGES.includes(Number(store.get(RKEY))) ? Number(store.get(RKEY)) : 30, offset: 0 };
+  const vis = { active: true, new: true };
+  const statsCache = new Map();   // "days:offset" -> {at, data}; 5 minuten
+  let stats = null, statsAt = null, timer = 0, lastPd0 = null, reqSeq = 0;
+
+  async function loadStats(force) {
+    const key = `${range.days}:${range.offset}`;
+    const hit = statsCache.get(key);
+    renderRangeControls();
+    if (force !== true && hit && Date.now() - hit.at < 5 * 60_000) {
+      setStats(hit.data, new Date(hit.at));
+      return;
+    }
+    const btn = $("refresh"), plot = $("insPlot");
+    const seq = ++reqSeq;
     btn.classList.add("busy"); btn.disabled = true;
+    plot.classList.add("loading");
     if (!stats) { renderKpiSkeleton(); $("updated").textContent = t("ov.loading"); }
     try {
-      stats = await call("stats", { days: 30 });
-      statsAt = new Date();
+      const data = await call("stats", { days: range.days, offset: range.offset });
+      if (seq !== reqSeq) return;   // intussen een andere periode gekozen
+      statsCache.set(key, { at: Date.now(), data });
       $("ovErr").classList.add("hidden");
-      renderStats();
+      setStats(data, new Date());
     } catch (e) {
-      if (e.code === "auth") return;
+      if (seq !== reqSeq || e.code === "auth") return;
       $("ovErr").textContent = errText(e);
       $("ovErr").classList.remove("hidden");
       if (!stats) $("updated").textContent = "";
-    } finally { btn.classList.remove("busy"); btn.disabled = false; }
+    } finally {
+      if (seq === reqSeq) { btn.classList.remove("busy"); btn.disabled = false; plot.classList.remove("loading"); }
+    }
     clearInterval(timer);
     // elke 5 minuten vernieuwen zolang het overzicht zichtbaar is
-    timer = setInterval(() => { if (current === "overview" && !document.hidden && session()) loadStats(); }, 5 * 60_000);
+    timer = setInterval(() => { if (current === "overview" && !document.hidden && session()) loadStats(true); }, 5 * 60_000);
   }
-  $("refresh").addEventListener("click", loadStats);
+  function setStats(data, at) {
+    const swap = !!stats && stats !== data;
+    stats = data; statsAt = at;
+    const r = data.range || {};
+    if (!r.offset && Array.isArray(data.per_day)) lastPd0 = data.per_day;
+    renderStats(swap);
+  }
+  $("refresh").addEventListener("click", () => { statsCache.clear(); loadStats(true); });
 
   const ICON = {
     users: '<path d="M16 19c0-2.8-2.2-5-5-5H8c-2.8 0-5 2.2-5 5"/><circle cx="9.5" cy="7.5" r="3.5"/><path d="M21 19c0-2.4-1.6-4.4-3.8-4.9M15.5 4.2a3.5 3.5 0 0 1 0 6.6"/>',
@@ -288,12 +328,12 @@
     $("kpis").innerHTML = Array.from({ length: 7 }, (_, i) => `<div class="kpi skel${i === 0 ? " hero" : ""}"><div class="l">&nbsp;</div><div class="v">0</div><div class="s">&nbsp;</div></div>`).join("");
   }
 
-  function renderStats() {
+  function renderStats(swap) {
     if (!stats) return;
-    const s = stats, tt = s.totals || {}, pd = s.per_day || [];
+    const s = stats, tt = s.totals || {}, pd0 = lastPd0 || [];
     $("updated").textContent = t("ov.updated", { t: time(statsAt || new Date()) });
     const avg7 = Math.round(((tt.new_7d || 0) / 7) * 10) / 10;
-    const yesterdayNew = pd.length >= 2 ? pd[pd.length - 2].new : 0;
+    const yesterdayNew = pd0.length >= 2 ? pd0[pd0.length - 2].new : 0;
     const tiles = [
       { k: "installs", i: "users", v: tt.installs, s: t("k.plus7", { n: nf(tt.new_7d || 0) }), hero: true },
       { k: "active_today", i: "today", v: tt.active_today, s: t("k.ofTotal", { p: pct(tt.active_today, tt.installs) }) },
@@ -308,7 +348,8 @@
     box.innerHTML = tiles.map((x) => `<div class="kpi${x.hero ? " hero" : ""}">
       <div class="l">${ic(x.i)}<span>${esc(t(`k.${x.k}`))}</span></div>
       <div class="v">${nf(x.v || 0)}</div><div class="s">${esc(x.s)}</div>${x.hero ? '<svg class="spark" aria-hidden="true"></svg>' : ""}</div>`).join("");
-    renderCharts();
+    sparkline(document.querySelector(".kpi.hero .spark"), pd0.slice(-30).map((d) => d.active));
+    renderInsights(swap ? "swap" : "anim");
     renderDist("distPlatforms", s.platforms, tt.installs, "platform");
     renderDist("distDevices", s.devices, tt.installs, "device");
     renderDist("distVersions", s.versions, tt.active_30d, "version");
@@ -316,7 +357,7 @@
     renderDist("distLangs", s.langs, tt.active_30d, "lang");
   }
 
-  // ---------- grafieken (inline SVG) ----------
+  // ---------- grafiek in de stijl van Homey Insights (inline SVG, geen bibliotheken) ----------
   const NS = "http://www.w3.org/2000/svg";
   const el = (name, attrs = {}, parent) => {
     const n = document.createElementNS(NS, name);
@@ -324,113 +365,372 @@
     if (parent) parent.appendChild(n);
     return n;
   };
-  function niceMax(v) {
-    if (v <= 4) return 4;
-    const p = 10 ** Math.floor(Math.log10(v));
-    for (const m of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (m * p >= v) return m * p;
-    return 10 * p;
+  const SERIES = [
+    { key: "active", label: "ins.active", kind: "line" },
+    { key: "new", label: "ins.new", kind: "bar" },
+  ];
+  const DAY = 86_400_000;
+  const isoDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const dayMs = (iso) => Date.parse(`${iso}T00:00:00Z`);
+  const todayIso = () => isoDay(Date.now());
+
+  /** "18 sep – 17 okt 2026" (formatRange; NL zonder punten na de maand). */
+  function periodLabel(from, to) {
+    const f = new Intl.DateTimeFormat(locale(), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+    const a = new Date(dayMs(from)), b = new Date(dayMs(to));
+    let s;
+    try { s = f.formatRange(a, b); } catch { s = `${f.format(a)} – ${f.format(b)}`; }
+    return lang === "nl" ? s.replace(/\./g, "") : s;
   }
-  function frame(box, data, key) {
-    box.textContent = "";
-    const W = Math.max(box.clientWidth, 200), H = Math.max(box.clientHeight, 120);
-    const max = niceMax(Math.max(0, ...data.map((d) => d[key])));
-    const yLabelW = Math.max(22, String(nf(max)).length * 7 + 6);
-    const m = { l: yLabelW + 6, r: 6, t: 10, b: 24 };
-    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H }, box);
-    const pw = W - m.l - m.r, ph = H - m.t - m.b;
-    const y = (v) => m.t + ph - (v / max) * ph;
-    for (let i = 0; i <= 4; i++) {
-      const v = (max / 4) * i, yy = Math.round(y(v)) + 0.5;
-      el("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, class: i === 0 ? "base" : "grid" }, svg);
-      const tx = el("text", { x: m.l - 8, y: yy + 3.5, "text-anchor": "end", class: "axis" }, svg);
-      tx.textContent = nf(Math.round(v * 10) / 10);
+  const fmtDay = (iso, o) => {
+    const s = new Date(dayMs(iso)).toLocaleDateString(locale(), { ...o, timeZone: "UTC" });
+    return lang === "nl" ? s.replace(/\./g, "") : s;
+  };
+
+  /** Periode van het antwoord, of berekend uit de keuze (als de server nog geen range stuurt). */
+  function currentRange() {
+    const r = (stats && stats.range) || {};
+    if (/^\d{4}-\d{2}-\d{2}$/.test(r.from || "") && /^\d{4}-\d{2}-\d{2}$/.test(r.to || "")) return r;
+    const to = dayMs(todayIso()) - range.offset * range.days * DAY;
+    return { from: isoDay(to - (range.days - 1) * DAY), to: isoDay(to), days: range.days, offset: range.offset };
+  }
+  /** Dagreeks van de periode, aangevuld met nullen voor ontbrekende dagen. */
+  function seriesData() {
+    const r = currentRange();
+    const by = new Map((stats && Array.isArray(stats.per_day) ? stats.per_day : []).map((d) => [d.day, d]));
+    const out = [];
+    for (let ms = dayMs(r.from); ms <= dayMs(r.to); ms += DAY) {
+      const day = isoDay(ms), d = by.get(day) || {};
+      out.push({ day, active: Math.max(0, Number(d.active) || 0), new: Math.max(0, Number(d.new) || 0) });
     }
-    return { svg, W, H, m, pw, ph, y, max };
+    return out;
   }
-  function xLabels(f, data, xAt) {
-    const n = data.length;
-    const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(f.pw / 70))));
-    for (let i = n - 1; i >= 0; i -= every) {
-      const tx = el("text", { x: xAt(i), y: f.H - 6, "text-anchor": i === n - 1 ? "end" : "middle", class: "axis" }, f.svg);
-      tx.textContent = dateShort(data[i].day);
+  function summaryOf(key, data) {
+    const srv = stats && stats.summary && stats.summary[key];
+    if (srv && typeof srv.max === "number") return srv;
+    const v = data.map((d) => d[key]);
+    if (!v.length) return { min: 0, max: 0, avg: 0, last: 0, total: 0 };
+    const total = v.reduce((a, b) => a + b, 0);
+    return { min: Math.min(...v), max: Math.max(...v), avg: Math.round((total / v.length) * 10) / 10, last: v[v.length - 1], total };
+  }
+
+  function renderRangeControls() {
+    document.querySelectorAll("#insSeg [data-days]").forEach((b) => {
+      const on = Number(b.dataset.days) === range.days;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    $("insNext").disabled = range.offset <= 0;
+    $("insPrev").disabled = (range.offset + 1) * range.days > RETENTION;
+    const r = currentRange();
+    $("insPeriod").textContent = periodLabel(r.from, r.to);
+  }
+  function setRange(days, offset) {
+    if (days === range.days && offset === range.offset) return;
+    range.days = days; range.offset = Math.max(0, offset);
+    store.set(RKEY, String(days));
+    cross = -1;
+    loadStats();
+  }
+  $("insSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-days]");
+    if (b) setRange(Number(b.dataset.days), 0);
+  });
+  $("insPrev").addEventListener("click", () => { if (!$("insPrev").disabled) setRange(range.days, range.offset + 1); });
+  $("insNext").addEventListener("click", () => { if (range.offset > 0) setRange(range.days, range.offset - 1); });
+
+  function renderChips() {
+    $("insChips").innerHTML = SERIES.map((s) => `<button type="button" class="chip-s s-${s.key}${vis[s.key] ? " on" : ""}" data-series="${s.key}" aria-pressed="${vis[s.key]}">
+      <i class="sw" aria-hidden="true"></i><span>${esc(t(s.label))}</span></button>`).join("");
+  }
+  $("insChips").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-series]");
+    if (!b) return;
+    const k = b.dataset.series;
+    if (vis[k] && SERIES.filter((s) => vis[s.key]).length === 1) { toast(t("ins.oneOn")); return; }
+    vis[k] = !vis[k];
+    renderInsights("anim");
+  });
+
+  /** Mooie schaal: ronde stap (1-2-2,5-5 × 10ⁿ, heel getal) met 2 … maxTicks stappen; de laagste top wint. */
+  function niceScale(max, maxTicks) {
+    if (!(max > 0)) return { top: 4, step: 1 };
+    let best = null;
+    for (let e = 1; e <= max * 10; e *= 10) {
+      for (const k of [1, 2, 2.5, 5]) {
+        const step = k * e, n = Math.max(1, Math.ceil(max / step));
+        if (!Number.isInteger(step) || n > maxTicks || (n < 2 && max > 1)) continue;
+        if (!best || n * step < best.top || (n * step === best.top && step > best.step)) best = { top: n * step, step };
+      }
     }
+    return best || { top: Math.ceil(max), step: Math.ceil(max) };
   }
-  const tip = $("tip");
-  function showTip(ev, day, value, label) {
-    tip.innerHTML = `<span>${esc(dateLong(day))}</span><b>${nf(value)}</b><span>${esc(label)}</span>`;
+
+  /** Vloeiende lijn die niet doorschiet (monotone cubic, zoals d3.curveMonotoneX). */
+  function monotonePath(p) {
+    const n = p.length;
+    if (!n) return "";
+    if (n === 1) return `M${p[0][0]},${p[0][1]}`;
+    const s = [], h = [], m = new Array(n);
+    for (let i = 0; i < n - 1; i++) { h[i] = p[i + 1][0] - p[i][0]; s[i] = (p[i + 1][1] - p[i][1]) / (h[i] || 1); }
+    m[0] = s[0]; m[n - 1] = s[n - 2];
+    for (let i = 1; i < n - 1; i++) {
+      if (s[i - 1] * s[i] <= 0) { m[i] = 0; continue; }
+      const q = (s[i - 1] * h[i] + s[i] * h[i - 1]) / (h[i - 1] + h[i]);
+      m[i] = (Math.sign(s[i - 1]) + Math.sign(s[i])) * Math.min(Math.abs(s[i - 1]), Math.abs(s[i]), 0.5 * Math.abs(q));
+    }
+    const f = (v) => Math.round(v * 10) / 10;
+    let d = `M${f(p[0][0])},${f(p[0][1])}`;
+    for (let i = 0; i < n - 1; i++) {
+      const dx = h[i] / 3;
+      d += `C${f(p[i][0] + dx)},${f(p[i][1] + m[i] * dx)} ${f(p[i + 1][0] - dx)},${f(p[i + 1][1] - m[i + 1] * dx)} ${f(p[i + 1][0])},${f(p[i + 1][1])}`;
+    }
+    return d;
+  }
+
+  /** Indexen met een datumlabel: dunner naarmate de periode langer en de grafiek smaller is. */
+  function xTickIdx(data, pw) {
+    const n = data.length, fit = Math.max(2, Math.floor(pw / 64));
+    if (range.days >= 365) {
+      const starts = data.map((d, i) => (d.day.endsWith("-01") ? i : -1)).filter((i) => i >= 0);
+      const k = [1, 2, 3, 4, 6].find((x) => Math.ceil(starts.length / x) <= fit) || 6;
+      return { idx: starts.filter((_, j) => j % k === 0), fmt: (iso) => (iso.slice(5, 7) === "01" ? iso.slice(0, 4) : fmtDay(iso, { month: "short" })) };
+    }
+    if (range.days >= 90) {
+      const mondays = data.map((d, i) => (new Date(dayMs(d.day)).getUTCDay() === 1 ? i : -1)).filter((i) => i >= 0);
+      const k = [1, 2, 3, 4].find((x) => Math.ceil(mondays.length / x) <= fit) || 4;
+      return { idx: mondays.filter((_, j) => j % k === 0), fmt: (iso) => fmtDay(iso, { day: "numeric", month: "short" }) };
+    }
+    const step = [1, 2, 3, 5, 7, 10, 14].find((x) => Math.ceil(n / x) <= fit) || 14;
+    const idx = [];
+    for (let i = n - 1; i >= 0; i -= step) idx.unshift(i);
+    return { idx, fmt: range.days === 7 && step === 1 ? (iso) => fmtDay(iso, { weekday: "short", day: "numeric" }) : (iso) => fmtDay(iso, { day: "numeric", month: "short" }) };
+  }
+
+  let chart = null;   // laatste tekening: {data, xs, panels, svg, …} voor de kruisdraad
+  let cross = -1;     // index van de kruisdraad (-1 = verborgen)
+
+  function renderInsights(mode) {
+    if (!stats || current !== "overview") return;
+    renderRangeControls();
+    renderChips();
+    const plot = $("insPlot");
+    if (mode === "swap") {
+      plot.classList.add("swap");
+      setTimeout(() => { drawInsights(true); requestAnimationFrame(() => plot.classList.remove("swap")); }, 160);
+    } else {
+      drawInsights(mode === "anim");
+      plot.classList.remove("swap");
+    }
+    renderSummary();
+  }
+
+  function drawInsights(animate) {
+    const plot = $("insPlot"), tip = $("insTip");
+    plot.querySelectorAll("svg").forEach((n) => n.remove());
+    const data = seriesData(), n = data.length;
+    const shown = SERIES.filter((s) => vis[s.key]);
+    const W = Math.max(plot.clientWidth, 240), H = Math.max(plot.clientHeight, 160);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: animate ? "anim" : "", "aria-hidden": "true" });
+    plot.insertBefore(svg, tip);
+    if (!n) {
+      el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", class: "empty" }, svg).textContent = t("c.none");
+      chart = null;
+      return;
+    }
+
+    // panelen onder elkaar (één schaal per paneel, gedeelde tijdas): actief boven, nieuw onder
+    const capH = 20, gapH = 14, xAxisH = 26, top = 2;
+    const both = shown.length === 2;
+    const avail = H - top - xAxisH - capH * shown.length - (both ? gapH : 0);
+    const heights = both ? [Math.round(avail * 0.64), avail - Math.round(avail * 0.64)] : [avail];
+    const scales = shown.map((s, i) => {
+      const mx = Math.max(0, ...data.map((d) => d[s.key])) * 1.05;
+      return niceScale(mx, mx <= 12 ? 5 : Math.max(3, Math.min(5, Math.floor(heights[i] / 38))));
+    });
+    const labelW = Math.max(...scales.map((sc) => nf(sc.top).length)) * 7 + 14;
+    const m = { l: Math.max(30, labelW), r: 10 };
+    const pw = W - m.l - m.r, slot = pw / n;
+    const xs = data.map((_, i) => m.l + slot * (i + 0.5));
+
+    const defs = el("defs", {}, svg);
+    const lg = el("linearGradient", { id: "insLine", gradientUnits: "userSpaceOnUse", x1: m.l, x2: W - m.r, y1: 0, y2: 0 }, defs);
+    el("stop", { offset: 0, "stop-color": "#FF5A1F" }, lg);
+    el("stop", { offset: 1, "stop-color": "#FFB020" }, lg);
+
+    let y0 = top;
+    const panels = shown.map((s, pi) => {
+      const sc = scales[pi], h = heights[pi];
+      const py = y0 + capH, base = py + h;
+      const y = (v) => base - (v / sc.top) * h;
+      const g = el("g", { class: `pnl p-${s.key}` }, svg);
+      el("text", { x: m.l, y: y0 + 13, class: "cap" }, g).textContent = t(s.label);
+      for (let v = 0; v <= sc.top + 1e-9; v += sc.step) {
+        const yy = Math.round(y(v)) + 0.5;
+        el("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, class: v === 0 ? "base" : "grid" }, g);
+        el("text", { x: m.l - 10, y: yy + 3.5, "text-anchor": "end", class: "axis" }, g).textContent = nf(v);
+      }
+      const pts = data.map((d, i) => [xs[i], y(d[s.key])]);
+      let bars = null;
+      if (s.kind === "line") {
+        const ag = el("linearGradient", { id: "insArea", gradientUnits: "userSpaceOnUse", x1: 0, x2: 0, y1: py, y2: base }, defs);
+        el("stop", { offset: 0, "stop-color": "#FF7A1F", "stop-opacity": 0.28 }, ag);
+        el("stop", { offset: 0.55, "stop-color": "#FF5A1F", "stop-opacity": 0.08 }, ag);
+        el("stop", { offset: 1, "stop-color": "#FF5A1F", "stop-opacity": 0 }, ag);
+        const line = monotonePath(pts);
+        if (n > 1) el("path", { d: `${line}L${xs[n - 1].toFixed(1)},${base}L${xs[0].toFixed(1)},${base}Z`, class: "area" }, g);
+        el("path", { d: line, class: "line", pathLength: 1 }, g);
+        if (n <= 31) {
+          // punten als er weinig dagen zijn (zoals Insights bij een week)
+          const dots = el("g", { class: "pts" }, g);
+          pts.forEach((p) => el("circle", { cx: p[0], cy: p[1], r: n <= 7 ? 3.5 : 2 }, dots));
+        }
+        el("circle", { cx: pts[n - 1][0], cy: pts[n - 1][1], r: 4, class: "endpt" }, g);
+      } else {
+        const gap = slot >= 4 ? Math.min(6, Math.max(1, slot * 0.3)) : 0;
+        const bw = Math.min(40, Math.max(0.6, slot - gap));
+        const bg = el("g", { class: "bars" }, g);
+        bars = data.map((d, i) => {
+          const bh = base - y(d[s.key]);
+          if (bh <= 0) return null;
+          const x = xs[i] - bw / 2, yt = base - bh, r = Math.min(3, bw / 2, bh);
+          const dd = r >= 1
+            ? `M${x},${base}V${yt + r}Q${x},${yt} ${x + r},${yt}H${x + bw - r}Q${x + bw},${yt} ${x + bw},${yt + r}V${base}Z`
+            : `M${x},${base}V${yt}H${x + bw}V${base}Z`;
+          return el("path", { d: dd, class: "bar" }, bg);
+        });
+      }
+      y0 = base + gapH;
+      return { s, y, py, base, pts, bars, g };
+    });
+
+    // tijdas
+    const last = panels[panels.length - 1];
+    const tk = xTickIdx(data, pw);
+    tk.idx.forEach((i) => {
+      const x = xs[i];
+      const anchor = x - m.l < 22 ? "start" : W - m.r - x < 22 ? "end" : "middle";
+      el("line", { x1: Math.round(x) + 0.5, x2: Math.round(x) + 0.5, y1: last.base, y2: last.base + 4, class: "tick" }, svg);
+      el("text", { x, y: last.base + 18, "text-anchor": anchor, class: "axis" }, svg).textContent = tk.fmt(data[i].day);
+    });
+
+    // kruisdraad (verticale lijn, punt per reeks); vangvlak over de hele grafiek
+    const ch = el("g", { class: "cross", visibility: "hidden" }, svg);
+    const vline = el("line", { y1: panels[0].py - 4, y2: last.base, class: "vline" }, ch);
+    const dots = panels.map((p) => el("circle", { r: p.s.kind === "line" ? 5.5 : 4, class: `cdot c-${p.s.key}` }, ch));
+    chart = { data, xs, panels, svg, vline, dots, ch, m, pw, slot, W };
+    el("rect", { x: m.l, y: 0, width: pw, height: last.base, class: "hit" }, svg);
+
+    plot.setAttribute("aria-valuemax", String(n - 1));
+    plot.setAttribute("aria-label", t("ins.plot", { p: periodLabel(data[0].day, data[n - 1].day) }));
+    if (cross >= n) cross = n - 1;
+    if (cross >= 0) showCross(cross); else hideCross();
+  }
+
+  function showCross(i) {
+    const c = chart;
+    if (!c) return;
+    i = Math.max(0, Math.min(c.data.length - 1, i));
+    cross = i;
+    const x = c.xs[i], d = c.data[i];
+    c.vline.setAttribute("x1", x); c.vline.setAttribute("x2", x);
+    c.panels.forEach((p, j) => {
+      c.dots[j].setAttribute("cx", x);
+      c.dots[j].setAttribute("cy", p.pts[i][1]);
+      c.dots[j].setAttribute("visibility", p.s.kind === "bar" && !d[p.s.key] ? "hidden" : "visible");
+      if (p.bars) {
+        p.g.classList.add("hovering");
+        p.bars.forEach((b, k) => b && b.classList.toggle("on", k === i));
+      }
+    });
+    c.ch.setAttribute("visibility", "visible");
+    const tip = $("insTip");
+    const today = d.day === todayIso() ? ` <em>${esc(t("ins.today"))}</em>` : "";
+    tip.innerHTML = `<div class="tt-d">${esc(fmtDay(d.day, { weekday: "short", day: "numeric", month: "long", year: "numeric" }))}${today}</div>` +
+      c.panels.map((p) => `<div class="tt-r s-${p.s.key}"><i class="sw"></i><span>${esc(t(p.s.label))}</span><b>${nf(d[p.s.key])}</b></div>`).join("");
     tip.classList.remove("hidden");
-    const r = tip.getBoundingClientRect();
-    let x = ev.clientX + 14, yy = ev.clientY - r.height - 12;
-    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - 14;
-    if (yy < 8) yy = ev.clientY + 16;
-    tip.style.left = `${Math.max(8, x)}px`;
-    tip.style.top = `${yy}px`;
+    const tw = tip.offsetWidth, plotW = $("insPlot").clientWidth;
+    let left = x + 14;
+    if (left + tw > plotW - 4) left = x - tw - 14;
+    if (left < c.m.l) left = Math.min(plotW - tw - 4, x + 14);   // niet over de aslabels
+    tip.style.left = `${Math.max(c.m.l, left)}px`;
+    tip.style.top = `${Math.max(0, c.panels[0].py - 2)}px`;
+    const plot = $("insPlot");
+    plot.setAttribute("aria-valuenow", String(i));
+    plot.setAttribute("aria-valuetext", `${fmtDay(d.day, { weekday: "long", day: "numeric", month: "long" })}: ${c.panels.map((p) => `${t(p.s.label)} ${nf(d[p.s.key])}`).join(", ")}`);
   }
-  const hideTip = () => tip.classList.add("hidden");
-  function emptyChart(box) {
-    box.textContent = "";
-    const svg = el("svg", { viewBox: "0 0 300 120" }, box);
-    const tx = el("text", { x: 150, y: 64, "text-anchor": "middle", class: "empty" }, svg);
-    tx.textContent = t("c.none");
+  function hideCross() {
+    cross = -1;
+    $("insTip").classList.add("hidden");
+    if (!chart) return;
+    chart.ch.setAttribute("visibility", "hidden");
+    chart.panels.forEach((p) => p.bars && p.g.classList.remove("hovering"));
   }
 
-  function areaChart(box, data, key, label) {
-    if (!data.length) return emptyChart(box);
-    const f = frame(box, data, key);
-    const n = data.length;
-    const xAt = (i) => f.m.l + (n === 1 ? f.pw / 2 : (i / (n - 1)) * f.pw);
-    const defs = el("defs", {}, f.svg);
-    const g = el("linearGradient", { id: "areaFill", x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
-    el("stop", { offset: 0, "stop-color": "#FF5A1F", "stop-opacity": 0.32 }, g);
-    el("stop", { offset: 1, "stop-color": "#FF5A1F", "stop-opacity": 0 }, g);
-    const pts = data.map((d, i) => [xAt(i), f.y(d[key])]);
-    const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
-    el("path", { d: `${line}L${pts[n - 1][0].toFixed(1)},${f.y(0)}L${pts[0][0].toFixed(1)},${f.y(0)}Z`, class: "area" }, f.svg);
-    el("path", { d: line, class: "line" }, f.svg);
-    xLabels(f, data, xAt);
-    // laatste punt altijd gemarkeerd
-    el("circle", { cx: pts[n - 1][0], cy: pts[n - 1][1], r: 4, class: "dot" }, f.svg);
-    const cross = el("line", { y1: f.m.t, y2: f.y(0), class: "cross", visibility: "hidden" }, f.svg);
-    const dot = el("circle", { r: 5, class: "dot", visibility: "hidden" }, f.svg);
-    const hit = el("rect", { x: f.m.l, y: f.m.t, width: f.pw, height: f.ph, class: "hit" }, f.svg);
-    const move = (ev) => {
-      const r = f.svg.getBoundingClientRect();
-      const px = ((ev.clientX - r.left) / r.width) * f.W;
-      const i = Math.max(0, Math.min(n - 1, Math.round(((px - f.m.l) / f.pw) * (n - 1))));
-      cross.setAttribute("x1", pts[i][0]); cross.setAttribute("x2", pts[i][0]); cross.setAttribute("visibility", "visible");
-      dot.setAttribute("cx", pts[i][0]); dot.setAttribute("cy", pts[i][1]); dot.setAttribute("visibility", "visible");
-      showTip(ev, data[i].day, data[i][key], label);
+  // aanwijzen / slepen (muis, pen, touch). Touch: horizontaal slepen beweegt de kruisdraad, verticaal scrolt de pagina.
+  const plotEl = $("insPlot");
+  const idxAt = (ev) => {
+    if (!chart) return -1;
+    const r = chart.svg.getBoundingClientRect();
+    const px = ((ev.clientX - r.left) / r.width) * chart.W;
+    if (px < chart.m.l - 8 || px > chart.m.l + chart.pw + 8) return -2;
+    return Math.max(0, Math.min(chart.data.length - 1, Math.floor((px - chart.m.l) / chart.slot)));
+  };
+  const onPoint = (ev) => {
+    const i = idxAt(ev);
+    if (i >= 0) { if (i !== cross) showCross(i); } else if (i === -2 && ev.pointerType === "mouse") hideCross();
+  };
+  plotEl.addEventListener("pointermove", onPoint);
+  plotEl.addEventListener("pointerdown", onPoint);
+  plotEl.addEventListener("pointerleave", (ev) => { if (ev.pointerType === "mouse" && document.activeElement !== plotEl) hideCross(); });
+  document.addEventListener("pointerdown", (ev) => { if (ev.pointerType !== "mouse" && cross >= 0 && !plotEl.contains(ev.target)) hideCross(); });
+  // toetsenbord: pijltjes per dag, Shift per week, Home/End, Esc verbergt
+  plotEl.addEventListener("focus", () => { if (chart && cross < 0) showCross(chart.data.length - 1); });
+  plotEl.addEventListener("blur", hideCross);
+  plotEl.addEventListener("keydown", (e) => {
+    if (!chart) return;
+    const n = chart.data.length, i = cross < 0 ? n - 1 : cross, step = e.shiftKey ? 7 : 1;
+    const to = { ArrowLeft: i - step, ArrowRight: i + step, ArrowDown: i - step, ArrowUp: i + step, Home: 0, End: n - 1, PageUp: i - 30, PageDown: i + 30 }[e.key];
+    if (to !== undefined) { e.preventDefault(); showCross(to); } else if (e.key === "Escape" && cross >= 0 && !full) { e.preventDefault(); hideCross(); }
+  });
+
+  function renderSummary() {
+    const data = seriesData();
+    const cells = (k) => {
+      const sm = summaryOf(k, data);
+      const items = [["ins.min", sm.min], ["ins.max", sm.max], ["ins.avg", sm.avg], ["ins.last", sm.last]];
+      if (k === "new") items.push(["ins.total", typeof sm.total === "number" ? sm.total : data.reduce((a, d) => a + d.new, 0)]);
+      return items.map(([l, v]) => `<div class="sc"><dt>${esc(t(l))}</dt><dd>${nf(v)}</dd></div>`).join("");
     };
-    hit.addEventListener("pointermove", move);
-    hit.addEventListener("pointerdown", move);
-    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); hideTip(); });
-    box.setAttribute("aria-label", `${label}: ${data.map((d) => `${d.day} ${d[key]}`).join(", ")}`);
+    $("insSum").innerHTML = SERIES.filter((s) => vis[s.key]).map((s) => `<section class="sum s-${s.key}">
+      <h3><i class="sw" aria-hidden="true"></i>${esc(t(s.label))}</h3><dl>${cells(s.key)}</dl></section>`).join("");
   }
 
-  function barChart(box, data, key, label) {
-    if (!data.length) return emptyChart(box);
-    const f = frame(box, data, key);
-    const n = data.length, slot = f.pw / n, gap = Math.min(4, Math.max(2, slot * 0.25)), bw = Math.max(2, slot - gap);
-    const xAt = (i) => f.m.l + slot * i + slot / 2;
-    const bars = [];
-    data.forEach((d, i) => {
-      const h = f.y(0) - f.y(d[key]);
-      const x = f.m.l + slot * i + gap / 2;
-      if (h > 0) {
-        const r = Math.min(4, bw / 2, h), y0 = f.y(0), yt = y0 - h;
-        bars.push(el("path", { d: `M${x},${y0}V${yt + r}Q${x},${yt} ${x + r},${yt}H${x + bw - r}Q${x + bw},${yt} ${x + bw},${yt + r}V${y0}Z`, class: "bar" }, f.svg));
-      } else bars.push(null);
-    });
-    xLabels(f, data, xAt);
-    data.forEach((d, i) => {
-      const hit = el("rect", { x: f.m.l + slot * i, y: f.m.t, width: slot, height: f.ph, class: "hit" }, f.svg);
-      const on = (ev) => { bars.forEach((b, j) => b && b.classList.toggle("dim", j !== i)); showTip(ev, d.day, d[key], label); };
-      hit.addEventListener("pointermove", on);
-      hit.addEventListener("pointerdown", on);
-      hit.addEventListener("pointerleave", () => { bars.forEach((b) => b && b.classList.remove("dim")); hideTip(); });
-    });
-    box.setAttribute("aria-label", `${label}: ${data.map((d) => `${d.day} ${d[key]}`).join(", ")}`);
+  // volledig scherm (vergroten); Esc of klik op de achtergrond sluit
+  let full = false;
+  function openFull() {
+    full = true;
+    $("ins").classList.add("full");
+    $("insBackdrop").classList.remove("hidden");
+    document.body.classList.add("noscroll");
+    $("insExpand").setAttribute("aria-pressed", "true");
+    $("insExpand").setAttribute("aria-label", t("ins.close"));
+    renderInsights();
   }
+  function closeFull() {
+    if (!full) return;
+    full = false;
+    $("ins").classList.remove("full");
+    $("insBackdrop").classList.add("hidden");
+    document.body.classList.remove("noscroll");
+    $("insExpand").setAttribute("aria-pressed", "false");
+    $("insExpand").setAttribute("aria-label", t("ins.expand"));
+    renderInsights();
+    $("insExpand").focus();
+  }
+  $("insExpand").addEventListener("click", () => (full ? closeFull() : openFull()));
+  $("insBackdrop").addEventListener("click", closeFull);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && full) { e.preventDefault(); closeFull(); } });
 
   function sparkline(svg, data) {
     if (!svg || data.length < 2) return;
@@ -438,7 +738,7 @@
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     const max = Math.max(1, ...data);
     const pts = data.map((v, i) => [(i / (data.length - 1)) * W, H - 3 - (v / max) * (H - 6)]);
-    const d = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join("");
+    const d = monotonePath(pts);
     const defs = el("defs", {}, svg);
     const g = el("linearGradient", { id: "sparkFill", x1: 0, x2: 0, y1: 0, y2: 1 }, defs);
     el("stop", { offset: 0, "stop-color": "#FFB020", "stop-opacity": 0.35 }, g);
@@ -449,13 +749,16 @@
 
   function renderCharts() {
     if (!stats || current !== "overview") return;
-    const pd = stats.per_day || [];
-    areaChart($("chartActive"), pd, "active", t("c.active"));
-    barChart($("chartNew"), pd, "new", t("c.new"));
-    sparkline(document.querySelector(".kpi.hero .spark"), pd.map((d) => d.active));
+    drawInsights(false);
+    const pd0 = lastPd0 || [];
+    const sp = document.querySelector(".kpi.hero .spark");
+    if (sp) { sp.textContent = ""; sparkline(sp, pd0.slice(-30).map((d) => d.active)); }
   }
-  let rz = 0;
-  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderCharts, 120); });
+  let rz = 0, lastW = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(rz);
+    rz = setTimeout(() => { if (window.innerWidth !== lastW || full) { lastW = window.innerWidth; renderCharts(); } }, 120);
+  });
 
   // ---------- verdelingen ----------
   const PLATFORM = { ios: "iPhone", ipados: "iPad", macos: "Mac", tvos: "Apple TV", android: "Android", androidtv: "Android TV", web: "Web" };

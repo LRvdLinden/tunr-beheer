@@ -91,16 +91,38 @@
       </div>
       <div id="ovErr" class="banner hidden" role="alert"></div>
       <div id="kpis" class="kpis" aria-busy="true"></div>
-      <div class="charts">
-        <article class="card chart-card">
-          <header class="card-h"><h2 data-i18n="ov.activePerDay">Actief per dag</h2><span class="muted sm" data-i18n="ov.last30">laatste 30 dagen</span></header>
-          <div id="chartActive" class="chart" role="img"></div>
-        </article>
-        <article class="card chart-card">
-          <header class="card-h"><h2 data-i18n="ov.newPerDay">Nieuw per dag</h2><span class="muted sm" data-i18n="ov.last30">laatste 30 dagen</span></header>
-          <div id="chartNew" class="chart" role="img"></div>
-        </article>
-      </div>
+      <!-- grafiekkaart in de stijl van Homey Insights (getekend door admin.js als inline SVG) -->
+      <div id="insBackdrop" class="ins-backdrop hidden" aria-hidden="true"></div>
+      <article id="ins" class="card ins" aria-labelledby="insTitle">
+        <header class="ins-h">
+          <div class="ins-t">
+            <h2 id="insTitle" data-i18n="ins.title">Gebruikers</h2>
+            <div class="ins-nav">
+              <button id="insPrev" class="icbtn" type="button" data-i18n-aria="ins.prev" aria-label="Vorige periode">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button>
+              <span id="insPeriod" class="ins-period" aria-live="polite"></span>
+              <button id="insNext" class="icbtn" type="button" data-i18n-aria="ins.next" aria-label="Volgende periode">
+                <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg></button>
+            </div>
+          </div>
+          <div class="ins-tools">
+            <div id="insSeg" class="seg" role="group" data-i18n-aria="ins.range" aria-label="Periode">
+              <button type="button" data-days="7" data-i18n="ins.week">Week</button>
+              <button type="button" data-days="30" data-i18n="ins.month">Maand</button>
+              <button type="button" data-days="90" data-i18n="ins.quarter">Kwartaal</button>
+              <button type="button" data-days="365" data-i18n="ins.year">Jaar</button>
+            </div>
+            <button id="insExpand" class="icbtn" type="button" data-i18n-aria="ins.expand" aria-label="Vergroten" aria-pressed="false">
+              <svg class="ic ic-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"/></svg>
+              <svg class="ic ic-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          </div>
+        </header>
+        <div id="insChips" class="ins-chips" role="group" data-i18n-aria="ins.series" aria-label="Reeksen"></div>
+        <div id="insPlot" class="ins-plot" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+          <div id="insTip" class="ins-tip hidden" aria-hidden="true"></div>
+        </div>
+        <div id="insSum" class="ins-sum"></div>
+      </article>
       <div class="dists">
         <div class="dcol">
         <article class="card"><header class="card-h"><h2 data-i18n="ov.platforms">Per platform</h2><span class="muted sm" data-i18n="ov.allInstalls">alle installaties</span></header><div id="distPlatforms" class="dist"></div></article>
@@ -170,7 +192,6 @@
   </main>
 </div>
 
-<div id="tip" class="tip hidden" role="presentation"></div>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
 <script src="admin.js"></script>

@@ -103,6 +103,9 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .card{background:var(--surface);border:1px solid var(--stroke);border-radius:var(--r-card);padding:20px 22px;min-width:0}
 .card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px}
 .card-h h2{font-size:16px;font-weight:800;letter-spacing:-.005em}
+.dists .card{background:linear-gradient(180deg,#18181d,#131317)}
+.dists .card-h{align-items:center}
+.dists .card-h .muted{font-size:11.5px;font-weight:700;color:var(--sec);background:#ffffff0a;box-shadow:inset 0 0 0 1px var(--stroke);border-radius:999px;padding:2px 9px;white-space:nowrap}
 .foot-note{margin-top:8px;text-align:center}
 
 /* kengetallen */
@@ -119,24 +122,87 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .kpi .spark{position:absolute;right:18px;bottom:16px;width:44%;height:48px}
 .kpi.skel .v,.kpi.skel .s{color:transparent;background:#ffffff0d;border-radius:6px;width:60%}
 
-/* grafieken */
-.charts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px}
-.chart{position:relative;height:220px}
-.chart svg{display:block;width:100%;height:100%;overflow:visible}
-.chart .grid{stroke:#ffffff12;stroke-width:1}
-.chart .base{stroke:#ffffff2e;stroke-width:1}
-.chart .axis{fill:var(--dim);font-size:11px;font-family:var(--font);font-variant-numeric:tabular-nums}
-.chart .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.chart .area{fill:url(#areaFill)}
-.chart .bar{fill:var(--accent2);transition:opacity .12s}
-.chart .bar.dim{opacity:.35}
-.chart .cross{stroke:#ffffff55;stroke-width:1;stroke-dasharray:3 3}
-.chart .dot{fill:var(--accent);stroke:var(--surface);stroke-width:2}
-.chart .hit{fill:transparent;cursor:crosshair}
-.chart .empty{fill:var(--dim);font-size:13px}
-.tip{position:fixed;z-index:60;pointer-events:none;background:#1f1f26f2;border:1px solid var(--stroke2);border-radius:10px;padding:8px 11px;font-size:12.5px;line-height:1.35;box-shadow:0 12px 30px -10px #000;white-space:nowrap}
-.tip b{display:block;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
-.tip span{color:var(--sec)}
+/* grafiekkaart in de stijl van Homey Insights */
+.ins{margin-top:14px;padding:18px 20px 16px;background:linear-gradient(180deg,#18181d,#131317);display:flex;flex-direction:column}
+.ins-h{display:flex;justify-content:space-between;align-items:center;gap:12px 16px;flex-wrap:wrap}
+.ins-t{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;min-width:0}
+.ins-t h2{font-size:17px;font-weight:800;letter-spacing:-.01em}
+.ins-nav{display:flex;align-items:center;gap:2px}
+.ins-period{font-size:14px;font-weight:700;color:#e4e4ea;font-variant-numeric:tabular-nums;min-width:11.5em;text-align:center;white-space:nowrap}
+.ins-tools{display:flex;align-items:center;gap:8px}
+.icbtn{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;border:0;background:none;color:#d4d4dc;cursor:pointer;transition:background .15s,color .15s,opacity .15s}
+.icbtn:hover{background:#ffffff12;color:#fff}
+.icbtn:disabled{opacity:.28;cursor:default;background:none}
+.icbtn .ic{width:19px;height:19px}
+#insExpand{background:#ffffff0a;box-shadow:inset 0 0 0 1px var(--stroke)}
+#insExpand:hover{background:#ffffff18}
+#insExpand .ic-close,.ins.full #insExpand .ic-open{display:none}
+.ins.full #insExpand .ic-close{display:block}
+/* segmentbalk Week · Maand · Kwartaal · Jaar */
+.seg{display:inline-flex;padding:3px;border-radius:11px;background:#0000004d;box-shadow:inset 0 0 0 1px var(--stroke);gap:2px}
+.seg button{border:0;background:none;color:var(--sec);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;transition:background .2s,color .2s,box-shadow .2s;white-space:nowrap}
+.seg button:hover{color:#fff}
+.seg button.on{background:#2a2a32;color:#fff;box-shadow:0 1px 2px #0008,inset 0 1px 0 #ffffff14}
+/* reeksen als aan/uit-chips */
+.ins-chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+.chip-s{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:6px 13px 6px 10px;font-size:13px;font-weight:700;cursor:pointer;color:var(--dim);background:#ffffff08;box-shadow:inset 0 0 0 1px var(--stroke);transition:background .15s,color .15s,box-shadow .15s}
+.chip-s:hover{color:#fff}
+.chip-s.on{color:#fff;background:#ffffff10;box-shadow:inset 0 0 0 1px var(--stroke2)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;background:#ffffff30}
+.s-active .sw{background:linear-gradient(135deg,#FF5A1F,#FFB020)}
+.s-new .sw{background:#22D3EE;border-radius:3px}
+.chip-s:not(.on) .sw{background:none;box-shadow:inset 0 0 0 1.5px #ffffff40}
+/* plot */
+.ins-plot{position:relative;height:320px;margin-top:4px;touch-action:pan-y;-webkit-user-select:none;user-select:none;transition:opacity .16s ease;border-radius:10px}
+.ins-plot.loading{opacity:.45}
+.ins-plot.swap{opacity:0}
+.ins-plot:focus-visible{outline-offset:6px}
+.ins-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.ins-plot .grid{stroke:#ffffff0f;stroke-width:1}
+.ins-plot .base{stroke:#ffffff26;stroke-width:1}
+.ins-plot .tick{stroke:#ffffff26;stroke-width:1}
+.ins-plot .axis{fill:var(--dim);font-size:11px;font-family:var(--font);font-variant-numeric:tabular-nums}
+.ins-plot .cap{fill:var(--sec);font-size:11.5px;font-weight:700;font-family:var(--font);letter-spacing:.01em}
+.ins-plot .line{fill:none;stroke:url(#insLine);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.ins-plot .area{fill:url(#insArea)}
+.ins-plot .pts circle{fill:#141418;stroke:#FF8A1F;stroke-width:1.5}
+.ins-plot .endpt{fill:#FFB020;stroke:#141418;stroke-width:2.5}
+.ins-plot .bar{fill:#22D3EE;opacity:.85;transition:opacity .12s}
+.ins-plot .hovering .bar{opacity:.35}
+.ins-plot .hovering .bar.on{opacity:1}
+.ins-plot .vline{stroke:#ffffffa0;stroke-width:1}
+.ins-plot .cdot{stroke:#141418;stroke-width:2.5}
+.ins-plot .c-active{fill:#FF8A1F}
+.ins-plot .c-new{fill:#22D3EE}
+.ins-plot .hit{fill:transparent;cursor:crosshair}
+.ins-plot .empty{fill:var(--dim);font-size:13px}
+/* intro-animatie: lijn tekent zich, vlak en staafjes komen op */
+.ins-plot svg.anim .line{stroke-dasharray:1;animation:ins-draw .9s cubic-bezier(.3,.7,.2,1) both}
+.ins-plot svg.anim .area,.ins-plot svg.anim .pts,.ins-plot svg.anim .endpt{animation:ins-fade .7s .25s ease both}
+.ins-plot svg.anim .bar{transform-box:fill-box;transform-origin:50% 100%;animation:ins-grow .6s cubic-bezier(.2,.8,.2,1) both}
+@keyframes ins-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes ins-fade{from{opacity:0}}
+@keyframes ins-grow{from{transform:scaleY(0)}}
+/* zwevend label bij de kruisdraad */
+.ins-tip{position:absolute;z-index:3;pointer-events:none;min-width:150px;background:#22222af5;border:1px solid var(--stroke2);border-radius:11px;padding:8px 11px 9px;box-shadow:0 14px 34px -12px #000c;font-size:12.5px;line-height:1.35;white-space:nowrap;transition:left .07s linear}
+.ins-tip .tt-d{color:var(--sec);font-weight:600;margin-bottom:5px}
+.ins-tip .tt-d em{font-style:normal;color:var(--accent2);margin-left:4px}
+.ins-tip .tt-r{display:flex;align-items:center;gap:7px}
+.ins-tip .tt-r+.tt-r{margin-top:3px}
+.ins-tip .tt-r span{color:#d8d8de;flex:1}
+.ins-tip .tt-r b{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;margin-left:12px}
+/* samenvatting */
+.ins-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px 28px;margin-top:14px;padding-top:14px;border-top:1px solid var(--stroke)}
+.sum h3{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--sec);margin-bottom:6px}
+.sum dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:4px 12px}
+.sum .sc dt{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.sum .sc dd{font-family:var(--font-head);font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.25}
+/* volledig scherm */
+.ins-backdrop{position:fixed;inset:0;z-index:80;background:#000000b3;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:ins-fade .2s ease}
+.ins.full{position:fixed;inset:24px;z-index:81;margin:0;box-shadow:0 40px 100px -20px #000;animation:ins-pop .22s cubic-bezier(.2,.8,.2,1)}
+.ins.full .ins-plot{flex:1;height:auto;min-height:200px}
+@keyframes ins-pop{from{opacity:0;transform:scale(.97)}}
+body.noscroll{overflow:hidden}
 
 /* verdelingen */
 .dists{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
@@ -149,8 +215,8 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
 .drow .k .chip{font-size:10.5px;font-weight:800;letter-spacing:.04em;color:var(--sec);background:#ffffff10;border-radius:5px;padding:1px 5px}
 .drow .n{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .drow .n small{color:var(--dim);font-weight:600;margin-left:6px;display:inline-block;min-width:3.4em;text-align:right}
-.drow .track{grid-column:1/-1;height:6px;border-radius:6px;background:#ffffff0d;overflow:hidden}
-.drow .fill{height:100%;border-radius:6px;background:var(--grad);min-width:4px;width:0;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.drow .track{grid-column:1/-1;height:5px;border-radius:5px;background:#ffffff0b;overflow:hidden}
+.drow .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#FF5A1F,#FFB020);min-width:4px;width:0;transition:width .5s cubic-bezier(.2,.8,.2,1)}
 .drow .sub{grid-column:1/-1;font-size:12px;color:var(--dim);margin-top:-2px}
 .dist .none{color:var(--dim);font-size:14px;padding:6px 0}
 
@@ -210,7 +276,6 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
   :root{--g:20px}
   .top-in{gap:16px}
   .tabs button{padding:0 10px}
-  .charts{grid-template-columns:minmax(0,1fr)}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .settings{grid-template-columns:minmax(0,1fr)}
 }
@@ -236,14 +301,30 @@ input:focus{outline:none;border-color:var(--accent2);background:#ffffff12;box-sh
   .kpi.hero .v{font-size:38px}
   .kpi .spark{width:42%;height:38px;right:14px;bottom:auto;top:44px}
   .card{padding:16px}
-  .charts,.builds{gap:10px;margin-top:10px}
+  .builds{gap:10px;margin-top:10px}
+  .ins{margin-top:10px;padding:14px 14px 12px}
+  .ins-h{gap:10px}
+  .ins-t{width:100%;justify-content:space-between}
+  .ins-tools{width:100%}
+  .seg{flex:1}
+  .seg button{flex:1;padding:7px 4px}
+  .ins-period{min-width:0;font-size:13px}
+  .ins-chips{gap:6px;margin:12px 0 4px;flex-wrap:nowrap}
+  .chip-s{font-size:12px;padding:5px 10px 5px 8px;gap:6px;min-width:0}
+  .chip-s span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ins-plot{height:270px}
+  .ins-tip{min-width:0;padding:6px 9px 7px;font-size:11.5px;border-radius:9px}
+  .ins-tip .tt-d{margin-bottom:3px}
+  .ins-tip .tt-r b{font-size:13px;margin-left:8px}
+  .ins-sum{grid-template-columns:minmax(0,1fr);gap:12px}
+  .sum .sc dd{font-size:18px}
+  .ins.full{inset:0;border-radius:0;padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   .dists{margin-top:10px}
   .builds{grid-template-columns:minmax(0,1fr)}
   .dists,.dcol:nth-child(3){grid-template-columns:minmax(0,1fr)}
   .dists,.dcol{gap:10px}
   /* geen backdrop-filter op de kop: die zou de vaste tabbalk onderin aan de kop vastmaken */
   .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:#0a0a0cf2}
-  .chart{height:190px}
   .login-card{padding:28px 20px 18px}
   .brand.big .logo{font-size:32px}
 }

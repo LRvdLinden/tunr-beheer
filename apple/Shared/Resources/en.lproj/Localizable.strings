@@ -95,3 +95,23 @@
 "nieuw" = "new";
 "toegangscode" = "passcode";
 "wachtwoord" = "password";
+
+/* Grafiekkaart Gebruikers (stijl Homey Insights) */
+"Actieve gebruikers" = "Active users";
+"Gebruikers" = "Users";
+"Gem." = "Avg.";
+"Jaar" = "Year";
+"Klaar" = "Done";
+"Kwartaal" = "Quarter";
+"Laatste" = "Last";
+"Maand" = "Month";
+"Max" = "Max";
+"Min" = "Min";
+"Nieuwe gebruikers" = "New users";
+"Periode" = "Period";
+"Totaal" = "Total";
+"Vergroten" = "Expand";
+"Verkleinen" = "Collapse";
+"Volgende periode" = "Next period";
+"Vorige periode" = "Previous period";
+"Week" = "Week";

@@ -85,13 +85,23 @@ end $$;
 
 -- statistieken voor het dashboard en de Beheer-app (vorm: docs/CONTRACT.md, actie stats). Alles in UTC.
 -- "actief" = last_seen in de periode (gelijk aan een rij in install_days, die per ping wordt gezet).
-create or replace function public.tunr_stats(p_days int default 30) returns json
+-- per_day: periode van p_days dagen (7, 30, 90 of 365) die p_offset periodes terug eindigt:
+-- [vandaag - p_offset*p_days - (p_days-1), vandaag - p_offset*p_days]; p_offset*p_days ≤ 400 (bewaartermijn).
+-- De kengetallen en verdelingen gaan over nu (los van de periode).
+-- Oude versie met één parameter opruimen (anders twee overloads); idempotent.
+drop function if exists public.tunr_stats(int);
+create or replace function public.tunr_stats(p_days int default 30, p_offset int default 0) returns json
 language plpgsql stable security definer set search_path = public as $$
 declare
-  n int := least(greatest(coalesce(p_days, 30), 1), 90);
+  n int := case when p_days in (7, 30, 90, 365) then p_days else 30 end;
+  o int := least(greatest(coalesce(p_offset, 0), 0), 400 / n);
   today date := (now() at time zone 'utc')::date;
   t0 timestamptz := (today::timestamp at time zone 'utc');   -- vandaag 00:00 UTC
   a30 timestamptz := t0 - interval '29 days';
+  d_to date := today - o * n;                                -- laatste dag van de periode
+  d_from date := today - o * n - (n - 1);                    -- eerste dag van de periode
+  f0 timestamptz := (d_from::timestamp at time zone 'utc');
+  f1 timestamptz := ((d_to + 1)::timestamp at time zone 'utc');
   out json;
 begin
   select json_build_object(
@@ -105,11 +115,12 @@ begin
         'new_7d', count(*) filter (where first_seen >= t0 - interval '6 days'),
         'carplay', count(*) filter (where carplay))
       from public.installs),
+    'range', json_build_object('from', to_char(d_from, 'YYYY-MM-DD'), 'to', to_char(d_to, 'YYYY-MM-DD'), 'days', n, 'offset', o),
     'per_day', (select coalesce(json_agg(json_build_object('day', to_char(g.d, 'YYYY-MM-DD'), 'active', coalesce(a.c, 0), 'new', coalesce(nw.c, 0)) order by g.d), '[]'::json)
-      from (select today - (n - 1) + k as d from generate_series(0, n - 1) as k) g
-      left join (select day, count(*) as c from public.install_days where day > today - n group by day) a on a.day = g.d
+      from (select d_from + k as d from generate_series(0, n - 1) as k) g
+      left join (select day, count(*) as c from public.install_days where day between d_from and d_to group by day) a on a.day = g.d
       left join (select (first_seen at time zone 'utc')::date as day, count(*) as c from public.installs
-                 where first_seen >= t0 - (n - 1) * interval '1 day' group by 1) nw on nw.day = g.d),
+                 where first_seen >= f0 and first_seen < f1 group by 1) nw on nw.day = g.d),
     'platforms', (select coalesce(json_agg(json_build_object('key', platform, 'installs', c, 'active_30d', a) order by c desc, platform), '[]'::json)
       from (select platform, count(*) as c, count(*) filter (where last_seen >= a30) as a from public.installs group by platform) s),
     'devices', (select coalesce(json_agg(json_build_object('key', device, 'installs', c, 'active_30d', a) order by c desc, device), '[]'::json)
@@ -129,8 +140,8 @@ end $$;
 revoke all on function public.tunr_ping(uuid, text, text, text, text, text, int, text, text, boolean) from public, anon, authenticated;
 revoke all on function public.tunr_admin_logout_all() from public, anon, authenticated;
 revoke all on function public.tunr_cleanup() from public, anon, authenticated;
-revoke all on function public.tunr_stats(int) from public, anon, authenticated;
+revoke all on function public.tunr_stats(int, int) from public, anon, authenticated;
 grant execute on function public.tunr_ping(uuid, text, text, text, text, text, int, text, text, boolean) to service_role;
 grant execute on function public.tunr_admin_logout_all() to service_role;
 grant execute on function public.tunr_cleanup() to service_role;
-grant execute on function public.tunr_stats(int) to service_role;
+grant execute on function public.tunr_stats(int, int) to service_role;

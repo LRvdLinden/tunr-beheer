@@ -4,7 +4,8 @@
 // POST /functions/v1/admin  {action, ...}; header apikey; na inloggen Authorization: Bearer <token>
 //   login       {user, password}     -> {token, expires}            (expires = ISO 8601; 5 fouten per IP = 15 min dicht: 429 {error:"locked", retry_after})
 //   logout_all  {}                   -> {ok, v}                     (tokenversie + 1: alle tokens vervallen)
-//   stats       {days?: 30}          -> {generated, totals, per_day, platforms, devices, versions, countries, langs}
+//   stats       {days?: 30, offset?: 0} -> {generated, totals, range, per_day, summary, platforms, devices, versions, countries, langs}
+//                                    (days ∈ 7|30|90|365, offset = periodes terug, offset*days ≤ 400; anders 400 {error:"bad_range"})
 //   builds      {}                   -> {ready, platforms: {apple, android, beheer}, reason?}
 //   build_link  {platform, file?}    -> {url, expires, file, size}  (10 minuten geldig; expires = ISO 8601)
 //   Fouten: 401 {error:"unauthorized"}, 400/429/500/502/503 {error}.
@@ -12,7 +13,7 @@
 // Nooit loggen: wachtwoorden, tokens, sleutels, downloadlinks.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { bearer, FailureLog, GLOBAL_MAX, hashIp, LOCK_MAX, LOCK_WINDOW_S, lockRetryAfter, readToken, sameSecret, signToken } from "./auth.ts";
-import { clampDays, cleanStats } from "./stats.ts";
+import { cleanStats, parseRange } from "./stats.ts";
 import { buildUrl, cleanManifest, emptyManifest, findBuild, isBuildPlatform, isValidBuildFile, LINK_TTL, type Manifest, MIN_KEY, signBuildToken } from "./builds.ts";
 
 const env = (k: string) => (Deno.env.get(k) ?? "").trim();
@@ -189,10 +190,12 @@ Deno.serve(async (req) => {
         return json({ ok: true, v: Number(data) });
       }
       case "stats": {
+        const q = parseRange(body.days, body.offset);
+        if (!q) return json({ error: "bad_range" }, 400);
         await maybeCleanup();
-        const { data, error } = await db.rpc("tunr_stats", { p_days: clampDays(body.days) });
+        const { data, error } = await db.rpc("tunr_stats", { p_days: q.days, p_offset: q.offset });
         if (error) throw new Error(error.message);
-        return json(cleanStats(data));
+        return json(cleanStats(data, new Date(), q));
       }
       case "builds": {
         const r = await fetchManifest();

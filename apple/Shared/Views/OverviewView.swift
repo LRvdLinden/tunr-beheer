@@ -1,13 +1,19 @@
 import Charts
 import SwiftUI
 
-/// Overzicht (actie `stats`): kengetallen, grafiek Actief + Nieuw per dag (30 dagen) en de verdelingen.
+/// Overzicht (actie `stats`): kengetallen, grafiekkaart Gebruikers (stijl Homey Insights, periode + offset) en de
+/// verdelingen. De kengetallen en verdelingen gaan over nu; de grafiek over de gekozen periode.
 struct OverviewView: View {
     @EnvironmentObject private var session: Session
     @State private var stats: Stats?
     @State private var loadedAt: Date?
+    @State private var loadedQuery: StatsQuery?
     @State private var loading = false
     @State private var error: String?
+    @State private var query = StatsQuery.saved
+    @State private var showActive = true
+    @State private var showNew = true
+    @State private var expanded = false
 
     private let kpiColumns = [GridItem(.adaptive(minimum: 150), spacing: 12, alignment: .top)]
     private let cardColumns = [GridItem(.adaptive(minimum: 340), spacing: 12, alignment: .top)]
@@ -34,16 +40,50 @@ struct OverviewView: View {
         .screenBackground()
         .navigationTitle(L("Overzicht"))
         .largeTitle()
-        .refreshable { await load() }
+        .refreshable { await load(query, force: true) }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                RefreshButton(busy: loading) { Task { await load() } }
+                RefreshButton(busy: loading) { Task { await load(query, force: true) } }
             }
         }
-        .task { if stats == nil { await load() } }
-        .onChange(of: session.refreshTick) { _, _ in
-            Task { await load() }
+        // nieuwe periode of offset: opnieuw laden (de vorige aanvraag wordt afgebroken)
+        .task(id: query) { await load(query) }
+        .onChange(of: query) { _, q in
+            UserDefaults.standard.set(q.range.rawValue, forKey: StatsQuery.defaultsKey)
         }
+        .onChange(of: session.refreshTick) { _, _ in
+            Task { await load(query, force: true) }
+        }
+        .insightsPresentation(isPresented: $expanded) {
+            expandedChart
+        }
+    }
+
+    /// Vergrote grafiek (schermvullend op iPhone/iPad, sheet op de Mac).
+    private var expandedChart: some View {
+        NavigationStack {
+            ScrollView {
+                if let stats {
+                    InsightsCard(stats: stats, query: $query, showActive: $showActive, showNew: $showNew,
+                                 loading: loading, expanded: true, onExpand: { expanded = false })
+                        .padding(BeheerTheme.edge)
+                        .frame(maxWidth: 1400)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .screenBackground()
+            .navigationTitle(L("Gebruikers"))
+            .inlineTitle()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("Klaar")) { expanded = false }
+                }
+            }
+        }
+        #if os(macOS)
+        .frame(minWidth: 860, minHeight: 680)
+        #endif
+        .preferredColorScheme(.dark)
     }
 
     private var header: some View {
@@ -73,19 +113,10 @@ struct OverviewView: View {
             KPITile(title: L("CarPlay / Android Auto"), value: t.carplay, icon: "car.fill")
         }
 
+        InsightsCard(stats: s, query: $query, showActive: $showActive, showNew: $showNew,
+                     loading: loading, onExpand: { expanded = true })
+
         LazyVGrid(columns: cardColumns, alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: L("Actief per dag"), subtitle: L("Laatste 30 dagen"))
-                ActiveChart(points: s.perDay)
-            }
-            .card()
-
-            VStack(alignment: .leading, spacing: 12) {
-                SectionHeader(title: L("Nieuw per dag"), subtitle: L("Laatste 30 dagen"))
-                NewChart(points: s.perDay)
-            }
-            .card()
-
             distribution(L("Per platform"), L("Gebruikers (actief 30 dagen)"), rows: s.platforms.map {
                 BarList.Row(id: $0.key, label: Fmt.platform($0.key), icon: Fmt.platformIcon($0.key),
                             detail: activeDetail($0), value: $0.installs)
@@ -123,13 +154,22 @@ struct OverviewView: View {
         .card()
     }
 
-    private func load() async {
-        guard !loading else { return }
+    /// Laadt `stats` voor periode `q`. Binnen een minuut dezelfde periode opnieuw: niets doen (tenzij `force`).
+    private func load(_ q: StatsQuery, force: Bool = false) async {
+        if !force, loadedQuery == q, let loadedAt, Date().timeIntervalSince(loadedAt) < 60 {
+            loading = false
+            return
+        }
         loading = true
-        defer { loading = false }
+        defer { if query == q { loading = false } }
         do {
-            let s = try await session.call("stats", ["days": 30], as: Stats.self)
-            stats = s
+            let s = try await session.call("stats", ["days": q.range.rawValue, "offset": q.offset], as: Stats.self)
+            try Task.checkCancellation()
+            guard q == query else { return }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                stats = s
+            }
+            loadedQuery = q
             loadedAt = Date()
             error = nil
         } catch {
@@ -137,139 +177,5 @@ struct OverviewView: View {
             if let e = error as? APIError, e.isUnauthorized { return }
             self.error = (error as? APIError)?.errorDescription ?? L("Er ging iets mis.")
         }
-    }
-}
-
-// MARK: - Grafieken
-
-/// Actieve gebruikers per dag: vlak + lijn in het accentverloop, met selectie.
-struct ActiveChart: View {
-    let points: [DayPoint]
-    @State private var selected: Date?
-
-    private var selectedPoint: DayPoint? {
-        guard let selected else { return nil }
-        return points.first { Calendar.current.isDate($0.date, inSameDayAs: selected) }
-    }
-
-    var body: some View {
-        if points.isEmpty {
-            EmptyChart()
-        } else {
-            Chart {
-                ForEach(points) { p in
-                    AreaMark(x: .value(L("Dag"), p.date, unit: .day),
-                             y: .value(L("Actief"), p.active))
-                        .interpolationMethod(.monotone)
-                        .foregroundStyle(LinearGradient(colors: [BeheerTheme.accent.opacity(0.45), BeheerTheme.accent.opacity(0.02)],
-                                                        startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value(L("Dag"), p.date, unit: .day),
-                             y: .value(L("Actief"), p.active))
-                        .interpolationMethod(.monotone)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                        .foregroundStyle(BeheerTheme.barGradient)
-                }
-                if let s = selectedPoint {
-                    RuleMark(x: .value(L("Dag"), s.date, unit: .day))
-                        .foregroundStyle(Color.white.opacity(0.2))
-                        .annotation(position: .top, alignment: .center, spacing: 4) {
-                            ChartTooltip(value: s.active, unit: L("actief"), date: s.date)
-                        }
-                    PointMark(x: .value(L("Dag"), s.date, unit: .day),
-                              y: .value(L("Actief"), s.active))
-                        .foregroundStyle(BeheerTheme.accent2)
-                }
-            }
-            .chartXSelection(value: $selected)
-            .chartXAxis { dayAxis(count: points.count) }
-            .chartYAxis { valueAxis() }
-            .frame(height: 210)
-        }
-    }
-}
-
-/// Nieuwe gebruikers per dag: staafjes.
-struct NewChart: View {
-    let points: [DayPoint]
-    @State private var selected: Date?
-
-    private var selectedPoint: DayPoint? {
-        guard let selected else { return nil }
-        return points.first { Calendar.current.isDate($0.date, inSameDayAs: selected) }
-    }
-
-    var body: some View {
-        if points.isEmpty {
-            EmptyChart()
-        } else {
-            Chart {
-                ForEach(points) { p in
-                    BarMark(x: .value(L("Dag"), p.date, unit: .day),
-                            y: .value(L("Nieuw"), p.new))
-                        .cornerRadius(3)
-                        .foregroundStyle(p.new == 0 ? Color.white.opacity(0.12)
-                                         : (selectedPoint?.id == p.id ? BeheerTheme.accent2 : BeheerTheme.accent))
-                }
-                if let s = selectedPoint {
-                    RuleMark(x: .value(L("Dag"), s.date, unit: .day))
-                        .foregroundStyle(Color.white.opacity(0.12))
-                        .annotation(position: .top, alignment: .center, spacing: 4) {
-                            ChartTooltip(value: s.new, unit: L("nieuw"), date: s.date)
-                        }
-                }
-            }
-            .chartXSelection(value: $selected)
-            .chartXAxis { dayAxis(count: points.count) }
-            .chartYAxis { valueAxis() }
-            .frame(height: 210)
-        }
-    }
-}
-
-struct EmptyChart: View {
-    var body: some View {
-        Text(L("Nog geen gegevens."))
-            .font(.subheadline)
-            .foregroundStyle(BeheerTheme.dim)
-            .frame(maxWidth: .infinity, minHeight: 120)
-    }
-}
-
-@MainActor
-private func dayAxis(count: Int) -> some AxisContent {
-    AxisMarks(values: .stride(by: .day, count: count <= 7 ? 1 : (count <= 14 ? 2 : 7))) { value in
-        AxisGridLine().foregroundStyle(Color.clear)
-        AxisValueLabel {
-            if let d = value.as(Date.self) {
-                Text(Fmt.shortDay(d))
-            }
-        }
-    }
-}
-
-@MainActor
-private func valueAxis() -> some AxisContent {
-    AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
-        AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
-        AxisValueLabel()
-    }
-}
-
-struct ChartTooltip: View {
-    let value: Int
-    let unit: String
-    let date: Date
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(verbatim: "\(Fmt.num(value)) \(unit)")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white)
-            Text(Fmt.longDay(date))
-                .font(.caption2)
-                .foregroundStyle(BeheerTheme.secondary)
-        }
-        .padding(8)
-        .background(BeheerTheme.elevated, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

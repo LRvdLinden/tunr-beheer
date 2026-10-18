@@ -87,17 +87,25 @@ Opschonen: installs zonder ping in 400 dagen en `install_days` ouder dan 400 dag
 
 - `login` `{user, password}` → `{ token, expires }`. Token = `base64url(json {v, e, s:"admin"}) . base64url(HMAC-SHA256(TUNR_TOKEN_SECRET, payload))`, 12 uur. Constant-time vergelijken; na 5 mislukte pogingen per IP 15 minuten blokkade. Audit `login` / `login_failed` (IP alleen gehasht).
 - `logout_all` → verhoogt `admin_token_state.v` (alle tokens vervallen).
-- `stats` `{days?: 30}` →
+- `stats` `{days?: 30, offset?: 0}` →
+  - `days` ∈ {7, 30, 90, 365} (week, maand, kwartaal, jaar; ontbreekt = 30). `offset` = aantal periodes terug (geheel getal ≥ 0, ontbreekt = 0) met `offset × days ≤ 400` (bewaartermijn). Anders 400 `{error:"bad_range"}`.
+  - Periode (UTC): `to = vandaag − offset × days`, `from = to − (days − 1)`. `per_day` bevat elke dag van die periode (ook dagen met 0), oud → nieuw.
+  - `summary` per reeks over `per_day`: `min`, `max`, `avg` (1 decimaal), `last` (laatste dag; bij offset 0 is dat vandaag, nog niet compleet); bij `new` ook `total`.
+  - `totals` en de verdelingen gaan altijd over nu (los van de periode).
 ```json
 { "generated": "2026-10-17T09:00:00Z",
   "totals": { "installs": 1234, "active_today": 120, "active_7d": 480, "active_30d": 900, "new_today": 15, "new_7d": 90, "carplay": 40 },
-  "per_day": [ { "day": "2026-09-18", "active": 100, "new": 10 } ],      // laatste N dagen, oud → nieuw
+  "range": { "from": "2026-09-18", "to": "2026-10-17", "days": 30, "offset": 0 },
+  "per_day": [ { "day": "2026-09-18", "active": 100, "new": 10 } ],      // elke dag van de periode, oud → nieuw
+  "summary": { "active": { "min": 80, "max": 140, "avg": 112.4, "last": 120 },
+               "new":    { "min": 2, "max": 21, "avg": 9.3, "last": 15, "total": 280 } },
   "platforms": [ { "key": "ios", "installs": 500, "active_30d": 400 } ],  // aflopend
   "devices":   [ { "key": "iPhone", "installs": 480, "active_30d": 390 } ],
   "versions":  [ { "key": "1.0.0 (14)", "installs": 300 } ],              // top 12, actief 30d
   "countries": [ { "key": "NL", "installs": 700 } ],                      // top 15, actief 30d
   "langs":     [ { "key": "nl", "installs": 800 } ] }
 ```
+  SQL: `public.tunr_stats(p_days int, p_offset int)` (service role); de functie `admin` controleert de invoer, rekent `summary` uit en maakt het antwoord netjes (`supabase/functions/admin/stats.ts`).
 - `builds` → `{ ready: bool, platforms: { apple: [build…], android: [build…], beheer: [build…] } }`, build = `{version, build, file, size, sha256, date, notes}` nieuwste eerst. Leest `manifest.json` via `https://beheer.tunr.online/dl.php` met een eigen kortgeldig token. Zonder `TUNR_BUILDS_KEY` → `ready:false`.
 - `build_link` `{platform, file}` → `{ url, expires }` = `https://beheer.tunr.online/dl.php?t=<token>` (10 minuten). Audit `build_link` (platform + bestand).
 - Fout: 401 `{error:"unauthorized"}` (token ongeldig/verlopen/oude versie), 400/429/500 met `{error}`.
@@ -123,7 +131,7 @@ Er komt nooit een pakket op GitHub (geen repo, geen release, geen artefact).
 ## Dashboard (web) en Beheer-app — schermen
 
 - **Inloggen**: gebruikersnaam + wachtwoord. App: token in de Keychain (alleen dit apparaat), Face ID/Touch ID-vergrendeling (standaard aan).
-- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiek Actief + Nieuw per dag (30 dagen); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages. Vernieuwen-knop; "bijgewerkt om …".
+- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages. Vernieuwen-knop; "bijgewerkt om …".
 - **Downloads**: per platform (Apple, Android, BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds.
 - **Instellingen**: uitloggen, overal uitloggen, (app) vergrendelen aan/uit, links naar tunr.online en de webspeler.
 - Stijl: Tunr-huisstijl (donker #0A0A0C, accent #FF5A1F → #FFB020), NL (standaard) / EN.

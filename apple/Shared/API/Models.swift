@@ -49,7 +49,11 @@ struct OKResponse: Decodable {
 struct Stats: Decodable {
     let generated: FlexValue?
     let totals: Totals
+    /// Periode van `per_day` (ontbreekt bij een oudere server: dan berekent de app hem uit de keuze).
+    let range: StatsRangeInfo?
     let perDay: [DayPoint]
+    /// Samenvatting per reeks over `per_day` (ontbreekt bij een oudere server: dan rekent de app hem zelf uit).
+    let summary: StatsSummary?
     let platforms: [Bucket]
     let devices: [Bucket]
     let versions: [Bucket]
@@ -57,15 +61,17 @@ struct Stats: Decodable {
     let langs: [Bucket]
 
     enum CodingKeys: String, CodingKey {
-        case generated, totals, platforms, devices, versions, countries, langs
+        case generated, totals, range, summary, platforms, devices, versions, countries, langs
         case perDay = "per_day"
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         generated = try? c.decodeIfPresent(FlexValue.self, forKey: .generated)
-        totals = (try? c.decodeIfPresent(Totals.self, forKey: .totals)) ?? Totals.empty
+        totals = ((try? c.decodeIfPresent(Totals.self, forKey: .totals)) ?? nil) ?? Totals.empty
+        range = (try? c.decodeIfPresent(StatsRangeInfo.self, forKey: .range)) ?? nil
         perDay = ((try? c.decodeIfPresent([DayPoint].self, forKey: .perDay)) ?? nil) ?? []
+        summary = (try? c.decodeIfPresent(StatsSummary.self, forKey: .summary)) ?? nil
         platforms = ((try? c.decodeIfPresent([Bucket].self, forKey: .platforms)) ?? nil) ?? []
         devices = ((try? c.decodeIfPresent([Bucket].self, forKey: .devices)) ?? nil) ?? []
         versions = ((try? c.decodeIfPresent([Bucket].self, forKey: .versions)) ?? nil) ?? []
@@ -126,6 +132,74 @@ struct DayPoint: Decodable, Identifiable {
         day = ((try? c.decodeIfPresent(String.self, forKey: .day)) ?? nil) ?? ""
         active = Int(((try? c.decodeIfPresent(FlexValue.self, forKey: .active)) ?? nil)?.number ?? 0)
         new = Int(((try? c.decodeIfPresent(FlexValue.self, forKey: .new)) ?? nil)?.number ?? 0)
+    }
+}
+
+/// `range` van `stats`: `{from, to, days, offset}` (datums als `YYYY-MM-DD`, UTC).
+struct StatsRangeInfo: Decodable, Equatable {
+    let from: String
+    let to: String
+    let days: Int
+    let offset: Int
+
+    enum CodingKeys: String, CodingKey { case from, to, days, offset }
+
+    init(from: String, to: String, days: Int, offset: Int) {
+        self.from = from; self.to = to; self.days = days; self.offset = offset
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func flex(_ k: CodingKeys) -> FlexValue? { (try? c.decodeIfPresent(FlexValue.self, forKey: k)) ?? nil }
+        from = String((flex(.from)?.text ?? "").prefix(10))
+        to = String((flex(.to)?.text ?? "").prefix(10))
+        days = Int(flex(.days)?.number ?? 0)
+        offset = Int(flex(.offset)?.number ?? 0)
+    }
+
+    var isValid: Bool { from.count == 10 && to.count == 10 && from <= to }
+}
+
+/// Min, max, gemiddelde, laatste (en totaal) van één reeks.
+struct SeriesSummary: Decodable, Equatable {
+    var min = 0
+    var max = 0
+    var avg = 0.0
+    var last = 0
+    var total: Int? = nil
+
+    enum CodingKeys: String, CodingKey { case min, max, avg, last, total }
+
+    init(values: [Int], withTotal: Bool) {
+        if let lo = values.min(), let hi = values.max(), let l = values.last {
+            let sum = values.reduce(0, +)
+            min = lo; max = hi; last = l
+            avg = (Double(sum) / Double(values.count) * 10).rounded() / 10
+        }
+        if withTotal { total = values.reduce(0, +) }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func n(_ k: CodingKeys) -> Double? { ((try? c.decodeIfPresent(FlexValue.self, forKey: k)) ?? nil)?.number }
+        min = Int(n(.min) ?? 0)
+        max = Int(n(.max) ?? 0)
+        avg = n(.avg) ?? 0
+        last = Int(n(.last) ?? 0)
+        total = n(.total).map { Int($0) }
+    }
+}
+
+struct StatsSummary: Decodable, Equatable {
+    let active: SeriesSummary?
+    let new: SeriesSummary?
+
+    enum CodingKeys: String, CodingKey { case active, new }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        active = (try? c.decodeIfPresent(SeriesSummary.self, forKey: .active)) ?? nil
+        new = (try? c.decodeIfPresent(SeriesSummary.self, forKey: .new)) ?? nil
     }
 }
 

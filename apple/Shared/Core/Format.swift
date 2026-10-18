@@ -57,6 +57,34 @@ enum Fmt {
         return f.string(from: d)
     }
 
+    /// Datum met een sjabloon in de taal van de app (bv. "EEE d" → "ma 12"); Nederlands zonder punten na afkortingen.
+    static func day(_ d: Date, template: String) -> String {
+        let f = DateFormatter()
+        f.locale = AppLanguage.locale
+        f.setLocalizedDateFormatFromTemplate(template)
+        let s = f.string(from: d)
+        return AppLanguage.code == "nl" ? s.replacingOccurrences(of: ".", with: "") : s
+    }
+
+    /// Periode als "18 sep – 17 okt 2026".
+    static func period(_ from: Date, _ to: Date) -> String {
+        let f = DateIntervalFormatter()
+        f.locale = AppLanguage.locale
+        f.dateTemplate = "d MMM y"
+        let s = f.string(from: from, to: to)
+        return AppLanguage.code == "nl" ? s.replacingOccurrences(of: ".", with: "") : s
+    }
+
+    /// Getal met hoogstens één decimaal ("479,1").
+    static func decimal(_ v: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.locale = AppLanguage.locale
+        f.maximumFractionDigits = 1
+        f.minimumFractionDigits = 0
+        return f.string(from: NSNumber(value: v)) ?? String(v)
+    }
+
     /// `yyyy-MM-dd` als lokale middernacht (voor de grafiek).
     static func parseDay(_ s: String) -> Date? {
         let f = DateFormatter()
