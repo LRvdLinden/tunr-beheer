@@ -35,7 +35,7 @@ Deno.test("token: weigert korte sleutel, ongeldig pad, rare geldigheid", async (
 });
 
 Deno.test("pad: zelfde regels als dl.php", () => {
-  for (const p of ["manifest.json", "apple/Tunr-1.0.0-build14-Xcode.zip", "android/Tunr-1.0.0-build14.apk", "beheer/BeheerTunr-1.0.0-build3-Xcode.zip"]) {
+  for (const p of ["manifest.json", "apple/Tunr-1.0.0-build14-Xcode.zip", "android/Tunr-1.0.0-build14.apk", "play/Tunr-1.0.0-build14.aab", "beheer/BeheerTunr-1.0.0-build3-Xcode.zip"]) {
     ok(isValidBuildPath(p), `geldig: ${p}`);
   }
   for (const p of ["", "key.php", ".htaccess", "tizen/x.wgt", "android/", "android/../key.php", "android/.htaccess",
@@ -59,14 +59,14 @@ const RAW = {
 
 Deno.test("manifest: opschonen volgens het contract", () => {
   const m = cleanManifest(RAW)!;
-  ok(Object.keys(m).join() === "apple,android,beheer", Object.keys(m).join());
+  ok(Object.keys(m).join() === "apple,android,play,beheer", Object.keys(m).join());
   ok(m.apple.length === 2, `apple ${m.apple.length}`);
   ok(m.apple[0].build === 15 && m.apple[0].sha256.length === 64 && m.apple[0].notes === "- nieuw" && m.apple[0].size === 1234, "eerste");
   ok(m.apple[1].build === 14 && m.apple[1].size === 0 && m.apple[1].sha256 === "" && m.apple[1].notes === "", "tweede");
   ok(m.android.length === 10 && m.android[0].build === 30, "hoogstens 10");
   ok(m.beheer.length === 0, "beheer leeg");
   ok(cleanManifest(null) === null && cleanManifest([]) === null, "geen manifest");
-  ok(JSON.stringify(cleanManifest({})) === JSON.stringify({ apple: [], android: [], beheer: [] }), "leeg");
+  ok(JSON.stringify(cleanManifest({})) === JSON.stringify({ apple: [], android: [], play: [], beheer: [] }), "leeg");
 });
 
 Deno.test("manifest: build zoeken", () => {

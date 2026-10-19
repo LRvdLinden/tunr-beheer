@@ -369,9 +369,9 @@ struct BuildLinkResponse: Decodable {
     let expires: FlexValue?
 }
 
-/// De drie platforms op de tab Downloads.
+/// De platforms op de tab Downloads (play = Google Play, Android App Bundle).
 enum BuildPlatform: String, CaseIterable, Identifiable {
-    case apple, android, beheer
+    case apple, android, play, beheer
 
     var id: String { rawValue }
 
@@ -379,6 +379,7 @@ enum BuildPlatform: String, CaseIterable, Identifiable {
         switch self {
         case .apple: return L("Apple")
         case .android: return L("Android")
+        case .play: return "Google Play"
         case .beheer: return "BeheerTunr"
         }
     }
@@ -387,6 +388,7 @@ enum BuildPlatform: String, CaseIterable, Identifiable {
         switch self {
         case .apple: return L("Xcode-project (zip) voor iPhone, iPad, Mac, Apple TV en CarPlay")
         case .android: return L("APK voor telefoon, tablet, Android TV en Android Auto")
+        case .play: return L("Android App Bundle (.aab) voor de Play Console")
         case .beheer: return L("Xcode-project (zip) van deze beheer-app")
         }
     }
@@ -395,6 +397,7 @@ enum BuildPlatform: String, CaseIterable, Identifiable {
         switch self {
         case .apple: return "apple.logo"
         case .android: return "smartphone"
+        case .play: return "play.rectangle"
         case .beheer: return "gauge.with.dots.needle.67percent"
         }
     }

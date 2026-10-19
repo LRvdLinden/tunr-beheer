@@ -143,11 +143,12 @@ Op de server van beheer.tunr.online:
 ```
 builds/.htaccess        Require all denied
 builds/key.php          <?php return '<TUNR_BUILDS_KEY>';
-builds/manifest.json    { "apple": [ {version, build, file, size, sha256, date, notes} ], "android": [...], "beheer": [...] }
+builds/manifest.json    { "apple": [ {version, build, file, size, sha256, date, notes} ], "android": [...], "play": [...], "beheer": [...] }
 builds/apple/Tunr-1.0.0-build14-Xcode.zip
 builds/android/Tunr-1.0.0-build14.apk
+builds/play/Tunr-1.0.0-build14.aab      Android App Bundle voor Google Play (workflow Android, naast de APK)
 builds/beheer/BeheerTunr-1.0.0-build3-Xcode.zip
-dl.php                  ?t=<payload>.<sig>  — payload base64url({"f":"<platform>/<bestand>"|"manifest.json","e":<unix>}), HMAC-SHA256(key) ; max 15 min geldig; ?ping=1 → {"ok":true,"ready":bool}
+dl.php                  ?t=<payload>.<sig>  — payload base64url({"f":"<apple|android|play|beheer>/<bestand>"|"manifest.json","e":<unix>}), HMAC-SHA256(key) ; max 15 min geldig; ?ping=1 → {"ok":true,"ready":bool}
 ```
 
 Aanleveren (int-radio-app workflows *Apple* en *Android*, tunr-beheer workflow *Beheer-app*) met `tools/beheer_upload.sh <platform> <bestand> <versie> <build> [notities.md]`:
@@ -159,7 +160,7 @@ Er komt nooit een pakket op GitHub (geen repo, geen release, geen artefact).
 
 - **Inloggen**: gebruikersnaam + wachtwoord. App: token in de Keychain (alleen dit apparaat), Face ID/Touch ID-vergrendeling (standaard aan).
 - **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages; kaart **PressKit**: huidige versie, datum, grootte, aantal bestanden, downloads totaal en laatste 30 dagen, staafjes per dag (30 dagen), lijst per versie en de link **Download presskit** (opent `presskit.url`, telt niet mee). Vernieuwen-knop; "bijgewerkt om …".
-- **Downloads**: per platform (Apple, Android, BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds.
+- **Downloads**: per platform (Apple, Android, Google Play (.aab), BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds.
 - **Instellingen**: uitloggen, overal uitloggen, (app) vergrendelen aan/uit, links naar tunr.online en de webspeler.
 - Stijl: Tunr-huisstijl (donker #0A0A0C, accent #FF5A1F → #FFB020), NL (standaard) / EN.
 - Web: `robots.txt` blokkeert alles, `noindex`, strikte CSP via `web/.htaccess` (alleen verbinding met de Supabase-URL).

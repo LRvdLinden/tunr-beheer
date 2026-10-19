@@ -62,7 +62,7 @@ In **int-radio-app** komen er twee secrets bij: `BEHEER_FTP_USERNAME` en `BEHEER
 
 De buildpakketten (Xcode-zips van Tunr en BeheerTunr, de APK) staan **alleen** in de afgesloten map `builds/` op de server van beheer.tunr.online, nooit op GitHub (geen repo, release of artefact).
 
-- Aanleveren: `tools/beheer_upload.sh <apple|android|beheer> <bestand> <versie> <build> [notities.md]` (FTPS met certificaatcontrole). Per platform blijven de laatste 10 builds staan; oudere bestanden worden verwijderd.
+- Aanleveren: `tools/beheer_upload.sh <apple|android|play|beheer> <bestand> <versie> <build> [notities.md]` (FTPS met certificaatcontrole). Per platform blijven de laatste 10 builds staan; oudere bestanden worden verwijderd.
 - Ophalen: in het dashboard of de app op **Downloaden**. De functie `admin` maakt een link naar `dl.php` die 10 minuten geldig is (HMAC met `TUNR_BUILDS_KEY`). `builds/` zelf is via de webserver niet bereikbaar.
 
 ## Beveiliging

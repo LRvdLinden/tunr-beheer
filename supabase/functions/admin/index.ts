@@ -6,7 +6,7 @@
 //   logout_all  {}                   -> {ok, v}                     (tokenversie + 1: alle tokens vervallen)
 //   stats       {days?: 30, offset?: 0} -> {generated, totals, range, per_day, summary, platforms, devices, versions, countries, langs, presskit}
 //                                    (days ∈ 7|30|90|365, offset = periodes terug, offset*days ≤ 400; anders 400 {error:"bad_range"})
-//   builds      {}                   -> {ready, platforms: {apple, android, beheer}, reason?}
+//   builds      {}                   -> {ready, platforms: {apple, android, play, beheer}, reason?}
 //   build_link  {platform, file?}    -> {url, expires, file, size}  (10 minuten geldig; expires = ISO 8601)
 //   Fouten: 401 {error:"unauthorized"}, 400/429/500/502/503 {error}.
 // Logboek (admin_audit): login, login_failed, login_locked, logout_all, build_link (platform/bestand), cleanup; IP alleen gehasht.
