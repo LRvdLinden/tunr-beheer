@@ -138,6 +138,7 @@ enum Fmt {
         case "tvos": return "Apple TV"
         case "android": return "Android"
         case "androidtv": return "Android TV"
+        case "windows": return "Windows"
         case "web": return "Web"
         case "": return L("Onbekend")
         default: return key
@@ -152,6 +153,7 @@ enum Fmt {
         case "tvos": return "appletv"
         case "android": return "smartphone"
         case "androidtv": return "tv"
+        case "windows": return "pc"
         case "web": return "globe"
         default: return "questionmark.circle"
         }

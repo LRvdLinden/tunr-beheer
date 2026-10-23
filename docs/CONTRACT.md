@@ -35,7 +35,7 @@ Dit document is de bron van waarheid voor alle onderdelen. Wijzig het eerst hier
 ```sql
 create table if not exists public.installs (
   install_id uuid primary key,
-  platform text not null check (platform in ('ios','ipados','macos','tvos','android','androidtv','web')),
+  platform text not null check (platform in ('ios','ipados','macos','tvos','android','androidtv','windows','web')),
   device text not null default '',          -- 'iPhone','iPad','Mac','Apple TV','Android-telefoon','Android-tablet','Android TV','Google TV','Fire TV','Browser'
   model text not null default '',           -- bv. 'iPhone16,2', 'Pixel 8', 'Chrome 129 (macOS)' — max 60 tekens, geen persoonsgegevens
   os_version text not null default '',
@@ -133,7 +133,7 @@ Opschonen: installs zonder ping in 400 dagen en `install_days` ouder dan 400 dag
 ```
   `presskit`: versie/datum/grootte/bestanden uit `presskit.json` (server-side opgehaald, 10 min in het geheugen; niet bereikbaar = `available:false` en lege velden), tellingen uit `tunr_presskit_stats()` (mislukt = nullen). Het blok laat `stats` nooit mislukken. `url` = directe link naar de zip (telt niet mee).
   SQL: `public.tunr_stats(p_days int, p_offset int)` (service role); de functie `admin` controleert de invoer, rekent `summary` uit en maakt het antwoord netjes (`supabase/functions/admin/stats.ts`).
-- `builds` → `{ ready: bool, platforms: { apple: [build…], android: [build…], beheer: [build…] } }`, build = `{version, build, file, size, sha256, date, notes}` nieuwste eerst. Leest `manifest.json` via `https://beheer.tunr.online/dl.php` met een eigen kortgeldig token. Zonder `TUNR_BUILDS_KEY` → `ready:false`.
+- `builds` → `{ ready: bool, platforms: { apple: [build…], android: [build…], play: [build…], windows: [build…], beheer: [build…] } }`, build = `{version, build, file, size, sha256, date, notes}` nieuwste eerst. Leest `manifest.json` via `https://beheer.tunr.online/dl.php` met een eigen kortgeldig token. Zonder `TUNR_BUILDS_KEY` → `ready:false`.
 - `build_link` `{platform, file}` → `{ url, expires }` = `https://beheer.tunr.online/dl.php?t=<token>` (10 minuten). Audit `build_link` (platform + bestand).
 - Fout: 401 `{error:"unauthorized"}` (token ongeldig/verlopen/oude versie), 400/429/500 met `{error}`.
 
@@ -143,15 +143,16 @@ Op de server van beheer.tunr.online:
 ```
 builds/.htaccess        Require all denied
 builds/key.php          <?php return '<TUNR_BUILDS_KEY>';
-builds/manifest.json    { "apple": [ {version, build, file, size, sha256, date, notes} ], "android": [...], "play": [...], "beheer": [...] }
+builds/manifest.json    { "apple": [ {version, build, file, size, sha256, date, notes} ], "android": [...], "play": [...], "windows": [...], "beheer": [...] }
 builds/apple/Tunr-1.0.0-build14-Xcode.zip
 builds/android/Tunr-1.0.0-build14.apk
 builds/play/Tunr-1.0.0-build14.aab      Android App Bundle voor Google Play (workflow Android, naast de APK)
+builds/windows/Tunr-1.0.0-build14-Setup.exe   Windows-installer van de desktop-app (workflow Windows)
 builds/beheer/BeheerTunr-1.0.0-build3-Xcode.zip
-dl.php                  ?t=<payload>.<sig>  — payload base64url({"f":"<apple|android|play|beheer>/<bestand>"|"manifest.json","e":<unix>}), HMAC-SHA256(key) ; max 15 min geldig; ?ping=1 → {"ok":true,"ready":bool}
+dl.php                  ?t=<payload>.<sig>  — payload base64url({"f":"<apple|android|play|windows|beheer>/<bestand>"|"manifest.json","e":<unix>}), HMAC-SHA256(key) ; max 15 min geldig; ?ping=1 → {"ok":true,"ready":bool}
 ```
 
-Aanleveren (int-radio-app workflows *Apple* en *Android*, tunr-beheer workflow *Beheer-app*) met `tools/beheer_upload.sh <platform> <bestand> <versie> <build> [notities.md]`:
+Aanleveren (int-radio-app workflows *Apple*, *Android* en *Windows*, tunr-beheer workflow *Beheer-app*) met `tools/beheer_upload.sh <platform> <bestand> <versie> <build> [notities.md]`:
 1. haalt `builds/manifest.json` op via FTPS (of begint leeg), voegt het item vooraan toe (zelfde build vervangt), houdt per platform de **laatste 10** builds en verwijdert oudere bestanden;
 2. uploadt het bestand en het manifest via **FTPS met certificaatcontrole** (zelfde aanpak als de workflow *Website*: certificaat van de hoster, `cpanel04.zxcs.nl`).
 Er komt nooit een pakket op GitHub (geen repo, geen release, geen artefact).
@@ -159,8 +160,8 @@ Er komt nooit een pakket op GitHub (geen repo, geen release, geen artefact).
 ## Dashboard (web) en Beheer-app — schermen
 
 - **Inloggen**: gebruikersnaam + wachtwoord. App: token in de Keychain (alleen dit apparaat), Face ID/Touch ID-vergrendeling (standaard aan).
-- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages; kaart **PressKit**: huidige versie, datum, grootte, aantal bestanden, downloads totaal en laatste 30 dagen, staafjes per dag (30 dagen), lijst per versie en de link **Download presskit** (opent `presskit.url`, telt niet mee). Vernieuwen-knop; "bijgewerkt om …".
-- **Downloads**: per platform (Apple, Android, Google Play (.aab), BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds.
+- **Overzicht**: kengetallen (Gebruikers totaal, Actief vandaag, Actief 7 dagen, Actief 30 dagen, Nieuw vandaag, Nieuw 7 dagen, CarPlay/Android Auto); grafiekkaart **Gebruikers** in de stijl van Homey Insights: periodekeuze Week · Maand · Kwartaal · Jaar (7/30/90/365 dagen), pijltjes ‹ › om een periode terug/vooruit te gaan (› uit bij de huidige periode, ‹ uit voorbij de bewaartermijn) met het periodelabel (bv. "18 sep – 17 okt 2026"), reeksen als aan/uit-chips: **Actieve gebruikers** (vloeiende lijn + verloopvlak, #FF5A1F → #FFB020) en **Nieuwe gebruikers** (staafjes, #22D3EE; eigen as rechts als beide zichtbaar zijn), horizontale hulplijnen met aslabels, datumlabels die uitdunnen per periode, kruisdraad bij aanwijzen/slepen (verticale lijn, punt per reeks, label met datum en waarden; web: ook met de pijltjestoetsen), samenvatting onder de grafiek (Min · Max · Gem. · Laatste, bij nieuw ook Totaal) en vergroten (volledig scherm; web: Esc sluit); verdeling **per platform** (iPhone, iPad, Mac, Apple TV, Android, Android TV, Windows, Web), **per type apparaat**, **app-versies**, **landen** (vlag + naam) en **talen**; elk als staafjes met aantallen en percentages; kaart **PressKit**: huidige versie, datum, grootte, aantal bestanden, downloads totaal en laatste 30 dagen, staafjes per dag (30 dagen), lijst per versie en de link **Download presskit** (opent `presskit.url`, telt niet mee). Vernieuwen-knop; "bijgewerkt om …".
+- **Downloads**: per platform (Apple, Android, Google Play (.aab), Windows (.exe), BeheerTunr) de nieuwste build (versie, build, datum, grootte, notities) met **Downloaden** (opent de kortgeldige link) en de oudere builds. Een manifest zonder sleutel voor een platform (bv. `windows` in oudere manifesten) telt als leeg.
 - **Instellingen**: uitloggen, overal uitloggen, (app) vergrendelen aan/uit, links naar tunr.online en de webspeler.
 - Stijl: Tunr-huisstijl (donker #0A0A0C, accent #FF5A1F → #FFB020), NL (standaard) / EN.
 - Web: `robots.txt` blokkeert alles, `noindex`, strikte CSP via `web/.htaccess` (alleen verbinding met de Supabase-URL).

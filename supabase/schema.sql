@@ -5,7 +5,7 @@
 -- ===== tabellen (letterlijk uit het contract) =====
 create table if not exists public.installs (
   install_id uuid primary key,
-  platform text not null check (platform in ('ios','ipados','macos','tvos','android','androidtv','web')),
+  platform text not null check (platform in ('ios','ipados','macos','tvos','android','androidtv','windows','web')),
   device text not null default '',          -- 'iPhone','iPad','Mac','Apple TV','Android-telefoon','Android-tablet','Android TV','Google TV','Fire TV','Browser'
   model text not null default '',           -- bv. 'iPhone16,2', 'Pixel 8', 'Chrome 129 (macOS)' — max 60 tekens, geen persoonsgegevens
   os_version text not null default '',
@@ -17,6 +17,19 @@ create table if not exists public.installs (
   first_seen timestamptz not null default now(),
   last_seen timestamptz not null default now()
 );
+-- Platformlijst bijwerken op een bestaande tabel (de check hierboven geldt alleen bij een nieuwe tabel):
+-- elke check op installs.platform weg (standaardnaam installs_platform_check), daarna opnieuw met de huidige lijst.
+do $$
+declare c record;
+begin
+  for c in select conname from pg_constraint
+           where conrelid = 'public.installs'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%platform%'
+  loop
+    execute format('alter table public.installs drop constraint if exists %I', c.conname);
+  end loop;
+end $$;
+alter table public.installs add constraint installs_platform_check
+  check (platform in ('ios','ipados','macos','tvos','android','androidtv','windows','web'));
 create table if not exists public.install_days (
   install_id uuid not null references public.installs(install_id) on delete cascade,
   day date not null,

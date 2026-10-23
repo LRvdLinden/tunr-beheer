@@ -7,7 +7,7 @@
 
 export const DL_URL = "https://beheer.tunr.online/dl.php";
 /** Platforms in builds/manifest.json, tevens de mappen in builds/. */
-export const BUILD_PLATFORMS = ["apple", "android", "play", "beheer"] as const;
+export const BUILD_PLATFORMS = ["apple", "android", "play", "windows", "beheer"] as const;
 export type BuildPlatform = typeof BUILD_PLATFORMS[number];
 export const MAX_TTL = 900;
 export const LINK_TTL = 600;
@@ -27,7 +27,7 @@ export function isValidBuildFile(name: unknown): name is string {
 export const isBuildPlatform = (p: unknown): p is BuildPlatform =>
   typeof p === "string" && (BUILD_PLATFORMS as readonly string[]).includes(p);
 
-/** Zelfde regels als dl.php: "manifest.json" of "<apple|android|play|beheer>/<bestandsnaam>". */
+/** Zelfde regels als dl.php: "manifest.json" of "<apple|android|play|windows|beheer>/<bestandsnaam>". */
 export function isValidBuildPath(path: unknown): path is string {
   if (typeof path !== "string") return false;
   if (path === "manifest.json") return true;
@@ -49,13 +49,13 @@ export async function signBuildToken(key: string, path: string, ttlSeconds: numb
 
 export const buildUrl = (token: string) => `${DL_URL}?t=${encodeURIComponent(token)}`;
 
-// ---- manifest: { "apple": [build…], "android": [...], "play": [...] (Google Play, .aab), "beheer": [...] }, nieuwste eerst ----
+// ---- manifest: { "apple": [build…], "android": [...], "play": [...] (Google Play, .aab), "windows": [...] (Windows-installer, .exe), "beheer": [...] }, nieuwste eerst ----
 export type Build = { version: string; build: number; file: string; size: number; sha256: string; date: string; notes: string };
 export type Manifest = Record<BuildPlatform, Build[]>;
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
 
-export const emptyManifest = (): Manifest => ({ apple: [], android: [], play: [], beheer: [] });
+export const emptyManifest = (): Manifest => ({ apple: [], android: [], play: [], windows: [], beheer: [] });
 
 function entry(v: unknown): Build | null {
   if (!isObj(v) || !isValidBuildFile(v.file)) return null;

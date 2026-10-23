@@ -2,7 +2,7 @@
 // Download van een Tunr-build uit de afgesloten map builds/ (via de webserver niet bereikbaar).
 // Alleen met een geldige link uit de functie admin: ?t=<payload>.<handtekening>, HMAC-SHA256 met de sleutel in
 // builds/key.php (gezet door de workflow Backend, zelfde waarde als het function-secret TUNR_BUILDS_KEY).
-// payload = base64url(JSON {"f": "<apple|android|play|beheer>/<bestand>" of "manifest.json", "e": <unix-tijd>}); max. 15 min geldig.
+// payload = base64url(JSON {"f": "<apple|android|play|windows|beheer>/<bestand>" of "manifest.json", "e": <unix-tijd>}); max. 15 min geldig.
 // HEAD geeft alleen de koppen. Geen logging van de link. ?ping=1 -> {"ok":true,"ready":bool} voor de workflows.
 declare(strict_types=1);
 header('X-Robots-Tag: noindex, nofollow');
@@ -37,7 +37,7 @@ $p = $raw === false ? null : json_decode($raw, true);
 $now = time();
 if (!is_array($p) || !is_int($p['e'] ?? null) || $p['e'] < $now || $p['e'] > $now + 900) out(403, ['error' => 'expired']);
 $f = (string)($p['f'] ?? '');
-if (!preg_match('#^(manifest\.json|(apple|android|play|beheer)/[A-Za-z0-9][A-Za-z0-9._-]{0,150})$#', $f) || strpos($f, '..') !== false) {
+if (!preg_match('#^(manifest\.json|(apple|android|play|windows|beheer)/[A-Za-z0-9][A-Za-z0-9._-]{0,150})$#', $f) || strpos($f, '..') !== false) {
   out(400, ['error' => 'bad_file']);
 }
 $path = $dir . '/' . $f;

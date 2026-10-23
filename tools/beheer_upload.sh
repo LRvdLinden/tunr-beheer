@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Zet een buildpakket in de afgesloten map builds/ van beheer.tunr.online en werkt builds/manifest.json bij.
 #
-#   tools/beheer_upload.sh <apple|android|play|beheer> <bestand> <versie> <build> [notities.md]
+#   tools/beheer_upload.sh <apple|android|play|windows|beheer> <bestand> <versie> <build> [notities.md]
 #
 # Omgeving: FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, optioneel FTP_DIR (het eigen FTP-account van beheer.tunr.online).
 # Ook los te gebruiken vanuit andere repo's (int-radio-app):
 #   curl -fsSL https://raw.githubusercontent.com/LRvdLinden/tunr-beheer/main/tools/beheer_upload.sh -o /tmp/beheer_upload.sh
 #   bash /tmp/beheer_upload.sh android Tunr-1.0.0-build14.apk 1.0.0 14 notes.md
 #   bash /tmp/beheer_upload.sh play Tunr-1.0.0-build14.aab 1.0.0 14 notes.md   (Google Play: Android App Bundle)
+#   bash /tmp/beheer_upload.sh windows Tunr-1.0.0-build14-Setup.exe 1.0.0 14 notes.md   (Windows-installer)
 # Staat tools/ftps.sh niet naast dit script, dan wordt die van dezelfde plek gehaald (BEHEER_RAW).
 # Test zonder server: BEHEER_LOCAL_DIR=<map> gebruikt die map als de map van beheer.tunr.online.
 #
@@ -18,10 +19,10 @@
 # Er komt nooit een pakket op GitHub. Het log is openbaar: geen sleutels, mappen, servernamen of serverantwoorden.
 set -euo pipefail
 
-usage(){ echo "Gebruik: $0 <apple|android|play|beheer> <bestand> <versie> <build> [notities.md]" >&2; exit 2; }
+usage(){ echo "Gebruik: $0 <apple|android|play|windows|beheer> <bestand> <versie> <build> [notities.md]" >&2; exit 2; }
 [ $# -ge 4 ] || usage
 PLAT="$1"; FILE="$2"; VERSION="$3"; BUILD="$4"; NOTES="${5:-}"
-case "$PLAT" in apple|android|play|beheer) ;; *) echo "::error::Onbekend platform (apple, android, play of beheer)."; exit 2 ;; esac
+case "$PLAT" in apple|android|play|windows|beheer) ;; *) echo "::error::Onbekend platform (apple, android, play, windows of beheer)."; exit 2 ;; esac
 [ -f "$FILE" ] || { echo "::error::Bestand niet gevonden."; exit 2; }
 [[ "$VERSION" =~ ^[0-9][0-9A-Za-z.-]{0,19}$ ]] || { echo "::error::Ongeldige versie."; exit 2; }
 [[ "$BUILD" =~ ^[0-9]{1,7}$ ]] || { echo "::error::Ongeldig buildnummer."; exit 2; }
@@ -95,7 +96,7 @@ try:
     if not isinstance(m, dict): m = {}
 except Exception:
     m = {}
-for p in ("apple", "android", "play", "beheer"):
+for p in ("apple", "android", "play", "windows", "beheer"):
     if not isinstance(m.get(p), list): m[p] = []
 txt = ""
 if notes:

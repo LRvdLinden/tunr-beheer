@@ -23,8 +23,8 @@ Deno.test("minimale ping: standaardwaarden", () => {
 });
 
 Deno.test("alle platforms uit de lijst, verder niets", () => {
-  for (const p of ["ios", "ipados", "macos", "tvos", "android", "androidtv", "web"]) ok(err({ ...GOOD, platform: p }) === null, p);
-  for (const p of ["iOS", "windows", "", null, 1, "carplay"]) ok(err({ ...GOOD, platform: p }) === "bad_platform", String(p));
+  for (const p of ["ios", "ipados", "macos", "tvos", "android", "androidtv", "windows", "web"]) ok(err({ ...GOOD, platform: p }) === null, p);
+  for (const p of ["iOS", "Windows", "linux", "", null, 1, "carplay"]) ok(err({ ...GOOD, platform: p }) === "bad_platform", String(p));
 });
 
 Deno.test("id moet een uuid v4 zijn", () => {

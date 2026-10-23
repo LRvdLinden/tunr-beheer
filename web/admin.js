@@ -40,6 +40,7 @@
       "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV · Xcode-project",
       "dl.android": "Android", "dl.androidSub": "Telefoon, tablet, Android TV · APK",
       "dl.play": "Google Play", "dl.playSub": "Android App Bundle (.aab) voor de Play Console",
+      "dl.windows": "Windows", "dl.windowsSub": "Desktop-app voor Windows · installer (.exe)",
       "dl.beheer": "BeheerTunr", "dl.beheerSub": "Beheer-app (iOS, iPadOS, macOS) · Xcode-project",
       "dl.latest": "Nieuwste", "dl.build": "build {n}", "dl.download": "Downloaden", "dl.older": "Eerdere builds", "dl.empty": "Nog geen builds aangeleverd.",
       "dl.notReady": "Downloads zijn nog niet ingericht: draai de workflow Backend (die maakt de sleutel voor de downloadlinks).",
@@ -89,6 +90,7 @@
       "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV · Xcode project",
       "dl.android": "Android", "dl.androidSub": "Phone, tablet, Android TV · APK",
       "dl.play": "Google Play", "dl.playSub": "Android App Bundle (.aab) for the Play Console",
+      "dl.windows": "Windows", "dl.windowsSub": "Desktop app for Windows · installer (.exe)",
       "dl.beheer": "BeheerTunr", "dl.beheerSub": "Admin app (iOS, iPadOS, macOS) · Xcode project",
       "dl.latest": "Latest", "dl.build": "build {n}", "dl.download": "Download", "dl.older": "Earlier builds", "dl.empty": "No builds delivered yet.",
       "dl.notReady": "Downloads aren't set up yet: run the Backend workflow (it creates the key for download links).",
@@ -833,7 +835,7 @@
   });
 
   // ---------- verdelingen ----------
-  const PLATFORM = { ios: "iPhone", ipados: "iPad", macos: "Mac", tvos: "Apple TV", android: "Android", androidtv: "Android TV", web: "Web" };
+  const PLATFORM = { ios: "iPhone", ipados: "iPad", macos: "Mac", tvos: "Apple TV", android: "Android", androidtv: "Android TV", windows: "Windows", web: "Web" };
   const DEVICE_EN = { "Android-telefoon": "Android phone", "Android-tablet": "Android tablet" };
   const flag = (cc) => (/^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "");
   function dn(type, code) {
@@ -888,6 +890,7 @@
     apple: '<path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8C7 7.4 5.6 8.3 4.8 9.7c-1.6 2.8-.4 6.9 1.1 9.1.8 1.1 1.7 2.3 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.2.9-1.3 1.3-2.5 1.3-2.6 0 0-2.5-1-2.5-3.7zM14.1 5.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.6 1.4-.6.7-1.1 1.7-1 2.7 1 .1 2-.5 2.6-1.3z"/>',
     android: '<rect x="5" y="9" width="14" height="10" rx="2"/><path d="M8 9a4 4 0 0 1 8 0M8 5 6.5 3M16 5l1.5-2M3 11v5M21 11v5M9 19v2M15 19v2"/><circle cx="10" cy="7" r=".6"/><circle cx="14" cy="7" r=".6"/>',
     play: '<path d="M6 3.5v17l14-8.5z"/><path d="M6 3.5 15 12 6 20.5"/>',
+    windows: '<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20h8M12 16v4"/>',
     beheer: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   };
   const DL_ICON = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M4 20h16"/></svg>';
@@ -918,7 +921,7 @@
       $("dlErr").classList.remove("hidden");
     } else $("dlErr").classList.add("hidden");
     const P = builds.platforms || {};
-    box.innerHTML = ["apple", "android", "play", "beheer"].map((p) => {
+    box.innerHTML = ["apple", "android", "play", "windows", "beheer"].map((p) => {
       const list = Array.isArray(P[p]) ? P[p] : [];
       const head = `<div class="bh"><div class="bi"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${PICON[p]}</svg></div>
         <div><h2>${esc(t(`dl.${p}`))}</h2><p>${esc(t(`dl.${p}Sub`))}</p></div></div>`;
