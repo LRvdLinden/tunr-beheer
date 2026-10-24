@@ -387,7 +387,7 @@ enum BuildPlatform: String, CaseIterable, Identifiable {
 
     var hint: String {
         switch self {
-        case .apple: return L("Xcode-project (zip) voor iPhone, iPad, Mac, Apple TV en CarPlay")
+        case .apple: return L("Xcode-project (zip) voor iPhone, iPad, Mac, Apple TV, Apple Watch en CarPlay")
         case .android: return L("APK voor telefoon, tablet, Android TV en Android Auto")
         case .play: return L("Android App Bundle (.aab) voor de Play Console")
         case .windows: return L("Installer (.exe) voor de desktop-app voor Windows")

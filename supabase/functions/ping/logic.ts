@@ -1,7 +1,7 @@
 // Functie ping: pure validatie en limiet (geen netwerk of database), getest in ping_test.ts.
 // Vorm van de ping: docs/CONTRACT.md. Er wordt geen IP-adres opgeslagen; de limiet staat alleen in het geheugen.
 
-export const PLATFORMS = ["ios", "ipados", "macos", "tvos", "android", "androidtv", "windows", "web"] as const;
+export const PLATFORMS = ["ios", "ipados", "macos", "tvos", "watchos", "android", "androidtv", "windows", "web"] as const;
 export type Platform = typeof PLATFORMS[number];
 export const LANGS = ["nl", "en"] as const;
 export const MAX_BODY = 4096;

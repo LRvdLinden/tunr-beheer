@@ -37,7 +37,7 @@
       "c.active": "actief", "c.new": "nieuw", "c.none": "Nog geen gegevens", "d.none": "Nog geen gegevens",
       "d.active30": "actief 30 dagen: {n}", "d.unknown": "Onbekend",
       "dl.sub": "Buildpakketten staan alleen op de server van beheer.tunr.online. Een downloadlink is 10 minuten geldig.",
-      "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV · Xcode-project",
+      "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV, Apple Watch · Xcode-project",
       "dl.android": "Android", "dl.androidSub": "Telefoon, tablet, Android TV · APK",
       "dl.play": "Google Play", "dl.playSub": "Android App Bundle (.aab) voor de Play Console",
       "dl.windows": "Windows", "dl.windowsSub": "Desktop-app voor Windows · installer (.exe)",
@@ -87,7 +87,7 @@
       "c.active": "active", "c.new": "new", "c.none": "No data yet", "d.none": "No data yet",
       "d.active30": "active 30 days: {n}", "d.unknown": "Unknown",
       "dl.sub": "Build packages live only on the beheer.tunr.online server. A download link is valid for 10 minutes.",
-      "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV · Xcode project",
+      "dl.apple": "Apple", "dl.appleSub": "iPhone, iPad, Mac, Apple TV, Apple Watch · Xcode project",
       "dl.android": "Android", "dl.androidSub": "Phone, tablet, Android TV · APK",
       "dl.play": "Google Play", "dl.playSub": "Android App Bundle (.aab) for the Play Console",
       "dl.windows": "Windows", "dl.windowsSub": "Desktop app for Windows · installer (.exe)",
@@ -835,7 +835,7 @@
   });
 
   // ---------- verdelingen ----------
-  const PLATFORM = { ios: "iPhone", ipados: "iPad", macos: "Mac", tvos: "Apple TV", android: "Android", androidtv: "Android TV", windows: "Windows", web: "Web" };
+  const PLATFORM = { ios: "iPhone", ipados: "iPad", macos: "Mac", tvos: "Apple TV", watchos: "Apple Watch", android: "Android", androidtv: "Android TV", windows: "Windows", web: "Web" };
   const DEVICE_EN = { "Android-telefoon": "Android phone", "Android-tablet": "Android tablet" };
   const flag = (cc) => (/^[A-Z]{2}$/.test(cc) ? String.fromCodePoint(...[...cc].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "");
   function dn(type, code) {

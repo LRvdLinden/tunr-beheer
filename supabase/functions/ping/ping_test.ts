@@ -23,8 +23,17 @@ Deno.test("minimale ping: standaardwaarden", () => {
 });
 
 Deno.test("alle platforms uit de lijst, verder niets", () => {
-  for (const p of ["ios", "ipados", "macos", "tvos", "android", "androidtv", "windows", "web"]) ok(err({ ...GOOD, platform: p }) === null, p);
-  for (const p of ["iOS", "Windows", "linux", "", null, 1, "carplay"]) ok(err({ ...GOOD, platform: p }) === "bad_platform", String(p));
+  for (const p of ["ios", "ipados", "macos", "tvos", "watchos", "android", "androidtv", "windows", "web"]) ok(err({ ...GOOD, platform: p }) === null, p);
+  for (const p of ["iOS", "Windows", "watchOS", "watch", "linux", "", null, 1, "carplay"]) ok(err({ ...GOOD, platform: p }) === "bad_platform", String(p));
+});
+
+Deno.test("Apple Watch: platform watchos", () => {
+  const w = { ...GOOD, platform: "watchos", device: "Apple Watch", model: "Watch7,1", os: "11.0" };
+  const r = validatePing(w);
+  ok(r.ok, "ok");
+  if (!r.ok) return;
+  ok(JSON.stringify(r.value) === JSON.stringify(w), JSON.stringify(r.value));
+  ok(rpcArgs(r.value).p_platform === "watchos", "rpc-platform");
 });
 
 Deno.test("id moet een uuid v4 zijn", () => {

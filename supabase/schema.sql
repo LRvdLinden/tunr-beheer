@@ -5,8 +5,8 @@
 -- ===== tabellen (letterlijk uit het contract) =====
 create table if not exists public.installs (
   install_id uuid primary key,
-  platform text not null check (platform in ('ios','ipados','macos','tvos','android','androidtv','windows','web')),
-  device text not null default '',          -- 'iPhone','iPad','Mac','Apple TV','Android-telefoon','Android-tablet','Android TV','Google TV','Fire TV','Browser'
+  platform text not null check (platform in ('ios','ipados','macos','tvos','watchos','android','androidtv','windows','web')),
+  device text not null default '',          -- 'iPhone','iPad','Mac','Apple TV','Apple Watch','Android-telefoon','Android-tablet','Android TV','Google TV','Fire TV','Browser'
   model text not null default '',           -- bv. 'iPhone16,2', 'Pixel 8', 'Chrome 129 (macOS)' — max 60 tekens, geen persoonsgegevens
   os_version text not null default '',
   app_version text not null default '',
@@ -29,7 +29,7 @@ begin
   end loop;
 end $$;
 alter table public.installs add constraint installs_platform_check
-  check (platform in ('ios','ipados','macos','tvos','android','androidtv','windows','web'));
+  check (platform in ('ios','ipados','macos','tvos','watchos','android','androidtv','windows','web'));
 create table if not exists public.install_days (
   install_id uuid not null references public.installs(install_id) on delete cascade,
   day date not null,
