@@ -3,13 +3,52 @@ on: workflow_dispatch
 permissions:
   contents: read
 jobs:
-  a:
+  j0:
+    name: LRBEHEER_APN_P8
     runs-on: ubuntu-latest
     steps:
-      - run: echo ok
-  b:
+      - env:
+          X: ${{ secrets.LRBEHEER_APN_P8 }}
+        run: echo "len ${#X}"
+  j1:
+    name: LRBEHEER_ASC_KEY_P8
     runs-on: ubuntu-latest
-    env:
-      X: ${{ secrets.LRBEHEER_ASC_KEY_P8 }}
     steps:
-      - run: echo "len ${#X}"
+      - env:
+          X: ${{ secrets.LRBEHEER_ASC_KEY_P8 }}
+        run: echo "len ${#X}"
+  j2:
+    name: LRBEHEER_ASC_KEY_ID
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          X: ${{ secrets.LRBEHEER_ASC_KEY_ID }}
+        run: echo "len ${#X}"
+  j3:
+    name: LRBEHEER_ASC_ISSUER_ID
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          X: ${{ secrets.LRBEHEER_ASC_ISSUER_ID }}
+        run: echo "len ${#X}"
+  j4:
+    name: LRBEHEER_ASC_VENDOR
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          X: ${{ secrets.LRBEHEER_ASC_VENDOR }}
+        run: echo "len ${#X}"
+  j5:
+    name: SUPABASE_ACCESS_TOKEN
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          X: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: echo "len ${#X}"
+  j6:
+    name: LRBEHEER_ADMIN_USER
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          X: ${{ secrets.LRBEHEER_ADMIN_USER }}
+        run: echo "len ${#X}"
