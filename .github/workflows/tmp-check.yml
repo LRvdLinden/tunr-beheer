@@ -1,0 +1,15 @@
+name: tmp-check
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  a:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+  b:
+    runs-on: ubuntu-latest
+    env:
+      X: ${{ secrets.LRBEHEER_ASC_KEY_P8 }}
+    steps:
+      - run: echo "len ${#X}"
