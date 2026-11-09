@@ -1,0 +1,157 @@
+# LRbeheer: centrale functie `lrbeheer` (pushmeldingen van LRbeheer en het Bekendr-beheer) in dit Supabase-project.
+# De code staat in LRvdLinden/app.lrvdlinden (beheer/server); hier staat alleen het deployen, met het bestaande
+# SUPABASE_ACCESS_TOKEN van deze repo. Raakt de functies admin, ping en presskit niet en alleen tabellen lrbeheer_*.
+#
+# Start: met de hand, of door de workflow *LRbeheer push* in LRvdLinden/app.lrvdlinden.secrets. Die zet eerst deze
+# secrets hier (nooit in het log):
+#   LRBEHEER_APN_KEY_ID, LRBEHEER_APN_P8, LRBEHEER_TEAM_ID     APNs-sleutel (pushmeldingen naar LRbeheer)
+#   LRBEHEER_GH_READ                                            GitHub-token, alleen lezen (optioneel)
+#   LRBEHEER_ADMIN_USER, LRBEHEER_ADMIN_PASSWORD                gedeelde beheer-inlog (Bekendr-beheer)
+#   LRBEHEER_ASC_KEY_ID, LRBEHEER_ASC_ISSUER_ID, LRBEHEER_ASC_KEY_P8, LRBEHEER_ASC_VENDOR   App Store Connect (optioneel)
+# Het cron-geheim wordt elke run nieuw gemaakt en in de functie én de pg_cron-taak gezet.
+name: LRbeheer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lrbeheer
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      REF_SECRET: ${{ secrets.SUPABASE_PROJECT_REF }}
+      API: https://api.supabase.com/v1
+    steps:
+      - name: Code van de functie ophalen (app.lrvdlinden, beheer/server)
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 (v5.1.0)
+        with:
+          repository: LRvdLinden/app.lrvdlinden
+          ref: main
+          sparse-checkout: beheer/server
+          path: lr
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5 (v5.1.0)
+        with:
+          sparse-checkout: web/config.js
+          path: tunr
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2 (v2.0.5)
+        with:
+          deno-version: v2.x
+
+      - name: Tests van de functie
+        working-directory: lr/beheer/server
+        run: |
+          deno test supabase/functions/lrbeheer/logic_test.ts > test.log 2>&1 && { tail -2 test.log; exit 0; }
+          grep -E "FAILED|error|=>" test.log | head -20 | while IFS= read -r l; do echo "::error::${l:0:300}"; done
+          exit 1
+
+      - name: Controleren
+        env:
+          APN_KEY_ID: ${{ secrets.LRBEHEER_APN_KEY_ID }}
+          APN_P8: ${{ secrets.LRBEHEER_APN_P8 }}
+        run: |
+          REF="${REF_SECRET:-}"
+          [ -n "$REF" ] || REF=$(grep -oE "https://[a-z0-9]{20}\.supabase\.co" tunr/web/config.js | head -1 | sed -E 's#https://([a-z0-9]+)\..*#\1#' || true)
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || { echo "::error::SUPABASE_ACCESS_TOKEN ontbreekt"; exit 1; }
+          [[ "$REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Geen Supabase-project gevonden"; exit 1; }
+          [ -n "$APN_KEY_ID" ] && [ -n "$APN_P8" ] || { echo "::error::LRBEHEER_APN_KEY_ID/LRBEHEER_APN_P8 ontbreken: start LRbeheer push in app.lrvdlinden.secrets"; exit 1; }
+          echo "REF=$REF" >> "$GITHUB_ENV"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$API/projects/$REF" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" || true)
+          [ "$code" = 200 ] || { echo "::error::Supabase-project niet bereikbaar met SUPABASE_ACCESS_TOKEN (HTTP $code)"; exit 1; }
+          c="$(openssl rand -hex 32)"; echo "::add-mask::$c"; echo "CRON_SECRET=$c" >> "$GITHUB_ENV"
+
+      - name: Schema (alleen tabellen lrbeheer_*)
+        run: |
+          body=$(jq -Rs '{query: .}' lr/beheer/server/supabase/schema.sql)
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/projects/$REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' -d "$body")
+          [ "$code" -lt 300 ] || { echo "::error::Schema gaf HTTP $code"; exit 1; }
+          echo "::notice::Schema toegepast"
+
+      - uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1 (v1.7.3)
+        with:
+          version: 2.121.0
+
+      - name: Function-secrets zetten
+        env:
+          APN_KEY_ID: ${{ secrets.LRBEHEER_APN_KEY_ID }}
+          APN_P8: ${{ secrets.LRBEHEER_APN_P8 }}
+          TEAM_ID: ${{ secrets.LRBEHEER_TEAM_ID }}
+          GH_READ: ${{ secrets.LRBEHEER_GH_READ }}
+          B_USER: ${{ secrets.LRBEHEER_ADMIN_USER }}
+          B_PASS: ${{ secrets.LRBEHEER_ADMIN_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.LRBEHEER_ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.LRBEHEER_ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.LRBEHEER_ASC_KEY_P8 }}
+          ASC_VENDOR: ${{ secrets.LRBEHEER_ASC_VENDOR }}
+        run: |
+          one() { printf '%s' "$1" | awk 'BEGIN{ORS="\\n"} {print}'; }
+          f="$(mktemp)"
+          {
+            printf 'APN_KEY_ID=%s\n' "$APN_KEY_ID"
+            printf 'APN_P8_CERT=%s\n' "$(one "$APN_P8")"
+            printf 'TEAM_ID=%s\n' "${TEAM_ID:-EU3UY476T6}"
+            printf 'LRBEHEER_CRON_SECRET=%s\n' "$CRON_SECRET"
+            [ -z "$GH_READ" ] || printf 'GITHUB_TOKEN=%s\n' "$GH_READ"
+            [ -z "$B_USER" ] || printf 'BEHEER_APP_USER=%s\n' "$B_USER"
+            [ -z "$B_PASS" ] || printf 'BEHEER_APP_PASSWORD=%s\n' "$B_PASS"
+            [ -z "$ASC_KEY_ID" ] || printf 'ASC_KEY_ID=%s\n' "$ASC_KEY_ID"
+            [ -z "$ASC_ISSUER_ID" ] || printf 'ASC_ISSUER_ID=%s\n' "$ASC_ISSUER_ID"
+            [ -z "$ASC_KEY_P8" ] || printf 'ASC_KEY_P8=%s\n' "$(one "$ASC_KEY_P8")"
+            [ -z "$ASC_VENDOR" ] || printf 'ASC_VENDOR_NUMBER=%s\n' "$ASC_VENDOR"
+          } > "$f"
+          [ -n "$B_USER" ] && [ -n "$B_PASS" ] || echo "::warning::Beheer-inlog ontbreekt: inloggen in het Bekendr-beheer lukt niet"
+          [ -n "$ASC_KEY_P8" ] && [ -n "$ASC_VENDOR" ] || echo "::warning::App Store Connect niet compleet (.p8 of vendornummer): Bekendr telt alleen Android"
+          supabase_ok=0
+          supabase secrets set --project-ref "$REF" --env-file "$f" > /dev/null 2>&1 && supabase_ok=1
+          rm -f "$f"
+          [ "$supabase_ok" = 1 ] || { echo "::error::Function-secrets zetten mislukt"; exit 1; }
+          echo "::notice::Function-secrets van lrbeheer gezet"
+
+      - name: Functie deployen
+        working-directory: lr/beheer/server
+        run: |
+          [ -f supabase/config.toml ] || printf 'project_id = "lrbeheer"\n\n[functions.lrbeheer]\nverify_jwt = false\n' > supabase/config.toml
+          supabase functions deploy lrbeheer --project-ref "$REF" --no-verify-jwt --use-api > deploy.log 2>&1 \
+            || { grep -iE "error" deploy.log | head -5 | sed 's/^/::error::/'; exit 1; }
+          echo "::notice::Functie lrbeheer gedeployd"
+
+      - name: Cron inplannen (pg_cron + pg_net)
+        run: |
+          sql=$(cat <<SQL
+          create extension if not exists pg_cron;
+          create extension if not exists pg_net;
+          select cron.unschedule(jobid) from cron.job where jobname in ('lrbeheer-push', 'lrbeheer-cleanup');
+          select cron.schedule('lrbeheer-push', '*/5 * * * *', \$job\$ select net.http_post(
+            url := 'https://$REF.supabase.co/functions/v1/lrbeheer',
+            headers := jsonb_build_object('Content-Type','application/json','x-lrbeheer-cron','$CRON_SECRET'),
+            body := '{"action":"cron"}'::jsonb); \$job\$);
+          select cron.schedule('lrbeheer-cleanup', '17 3 * * *', \$job\$ select public.lrbeheer_cleanup(); \$job\$);
+          SQL
+          )
+          body=$(printf '%s' "$sql" | jq -Rs '{query: .}')
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/projects/$REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' -d "$body")
+          [ "$code" -lt 300 ] || { echo "::error::Cron inplannen gaf HTTP $code"; exit 1; }
+          echo "::notice::Cron ingepland (elke 5 minuten; Bekendr elk uur)"
+
+      - name: Rooktest
+        run: |
+          sleep 5
+          u="https://$REF.supabase.co/functions/v1/lrbeheer"
+          a=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$u" -H 'Content-Type: application/json' -d '{"action":"history"}')
+          b=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$u" -H 'Content-Type: application/json' -H 'Origin: https://bekendr.lrvdlinden.app' -d '{"action":"bekendr_stats"}')
+          c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$u" -H 'Content-Type: application/json' -H 'Origin: https://example.com' -d '{"action":"bekendr_stats"}')
+          echo "::notice::zonder token: $a (verwacht 401); Bekendr zonder token: $b (verwacht 401); andere site: $c (verwacht 403)"
+          [ "$a" = 401 ] && [ "$b" = 401 ] && [ "$c" = 403 ] || exit 1
+          d=$(curl -s -X POST "$u" -H 'Content-Type: application/json' -H "x-lrbeheer-cron: $CRON_SECRET" -d '{"action":"cron"}' | jq -c '{ok, errors}' 2>/dev/null || echo '{}')
+          echo "::notice::eerste cron: $d"
