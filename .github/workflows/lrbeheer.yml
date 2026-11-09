@@ -153,5 +153,5 @@ jobs:
           c=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$u" -H 'Content-Type: application/json' -H 'Origin: https://example.com' -d '{"action":"bekendr_stats"}')
           echo "::notice::zonder token: $a (verwacht 401); Bekendr zonder token: $b (verwacht 401); andere site: $c (verwacht 403)"
           [ "$a" = 401 ] && [ "$b" = 401 ] && [ "$c" = 403 ] || exit 1
-          d=$(curl -s -X POST "$u" -H 'Content-Type: application/json' -H "x-lrbeheer-cron: $CRON_SECRET" -d '{"action":"cron","force_bekendr":true}' | jq -c '[.ok, .errors, .bekendr]' 2>/dev/null || echo '{}')
+          d=$(curl -s -X POST "$u" -H 'Content-Type: application/json' -H "x-lrbeheer-cron: $CRON_SECRET" -d '{"action":"cron"}' | jq -c '{ok, errors}' 2>/dev/null || echo '{}')
           echo "::notice::eerste cron: $d"
